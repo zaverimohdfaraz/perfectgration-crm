@@ -2,7 +2,9 @@
   "name": "perfectgration-crm",
   "version": "0.2.0",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:turbo": "next dev --turbo",
@@ -10,6 +12,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "lucide-react": "^1.61.0",
     "next": "14.2.15",
     "react": "18.3.1",
     "react-dom": "18.3.1"
