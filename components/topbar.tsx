@@ -21,7 +21,7 @@ export function Topbar({ user, alerts }: { user: User; alerts: Alert[] }) {
       </form>
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
-        <NotificationBell alerts={alerts} />
+       <NotificationBell />
         <div className="hidden pl-2 text-right sm:block">
           <p className="text-sm font-semibold text-ink">{user.name}</p>
           <p className="text-xs text-ink-muted">{ROLE_LABEL[user.role]}</p>

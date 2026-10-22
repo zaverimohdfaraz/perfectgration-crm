@@ -48,7 +48,7 @@ export function SiteHeader({ items, alerts, userName, roleLabel, signOutAction }
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <NotificationBell alerts={alerts} />
+         <NotificationBell />
           <div className="hidden pr-2 text-right xl:block">
             <p className="font-semibold leading-tight">{userName}</p>
             <p className="text-sm text-ink-muted">{roleLabel}</p>
