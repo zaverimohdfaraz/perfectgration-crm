@@ -21,7 +21,7 @@ const tasks = tasksFor(user, TASKS).sort((a, b) =>
       />
 
       {tasks.length === 0 ? (
-        <Panel>
+        <Panel>  
           <EmptyState
             title="No tasks right now"
             body="Tasks assigned to you will appear here."
