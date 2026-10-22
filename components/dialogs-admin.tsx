@@ -63,93 +63,27 @@ export function TeamNoteDialog({ note, onClose }: { note?: TeamNote; onClose: ()
   const [content, setContent] = useState(note?.content ?? "");
   const [category, setCategory] = useState(note?.category ?? "Process");
   const [pinned, setPinned] = useState(note?.pinned ?? false);
-  const [audience, setAudience] = useState<"everyone" | "specific">(note && (note.departments.length || note.people.length) ? "specific" : "everyone");
-  const [depts, setDepts] = useState<TeamId[]>(note?.departments ?? []);
-  const [people, setPeople] = useState<string[]>(note?.people ?? []);
-  const [find, setFind] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const candidates = d.users.filter((u) => !u.inactive && u.id !== d.user.id && `${u.name} ${u.email}`.toLowerCase().includes(find.trim().toLowerCase()));
-  const reach = new Set<string>();
-  d.users.forEach((u) => {
-    if (u.inactive || u.id === d.user.id) return;
-    if (people.includes(u.id) || (u.role === "consultant" && u.teams.some((t) => depts.includes(t)))) reach.add(u.id);
-  });
-  const leaders = d.users.filter((u) => u.role !== "consultant" && !u.inactive && u.id !== d.user.id && !reach.has(u.id)).length;
 
   const submit = () => {
     const e: Record<string, string> = {};
     if (!title.trim()) e.title = "Add a title.";
     if (!content.trim()) e.content = "Write the note.";
-    if (audience === "specific" && depts.length === 0 && people.length === 0) e.audience = "Choose at least one department or person, or switch to Everyone.";
     setErrors(e);
     if (Object.keys(e).length) return;
-    const aud = audience === "specific" ? { departments: depts, people } : { departments: [] as TeamId[], people: [] as string[] };
-    if (note) d.updateTeamNote(note.id, { title: title.trim(), content: content.trim(), category, pinned, ...aud });
-    else d.addTeamNote({ title: title.trim(), content: content.trim(), category, pinned, ...aud });
+    if (note) d.updateTeamNote(note.id, { title: title.trim(), content: content.trim(), category, pinned });
+    else d.addTeamNote({ title: title.trim(), content: content.trim(), category, pinned });
     d.toast(note ? "Note updated. (Demo: not saved.)" : "Note added to the team notepad. (Demo: not saved.)");
     onClose();
   };
 
   return (
-    <Modal title={note ? "Edit note" : "New team note"} description="Internal only. Never shown to clients." onClose={onClose} size="lg">
-      <form onSubmit={(ev) => { ev.preventDefault(); submit(); }} noValidate className="space-y-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2"><Field label="Title" htmlFor="tn-title" required error={errors.title}><input id="tn-title" className={field} value={title} onChange={(e) => setTitle(e.target.value)} /></Field></div>
-          <Field label="Category" htmlFor="tn-cat"><select id="tn-cat" className={field} value={category} onChange={(e) => setCategory(e.target.value)}>{["Process", "Documents", "Operations", "Reminder"].map((c) => <option key={c}>{c}</option>)}</select></Field>
-        </div>
+    <Modal title={note ? "Edit note" : "New team note"} description="Internal only. Never shown to clients." onClose={onClose}>
+      <form onSubmit={(ev) => { ev.preventDefault(); submit(); }} noValidate className="space-y-4">
+        <Field label="Title" htmlFor="tn-title" required error={errors.title}><input id="tn-title" className={field} value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
+        <Field label="Category" htmlFor="tn-cat"><select id="tn-cat" className={field} value={category} onChange={(e) => setCategory(e.target.value)}>{["Process", "Documents", "Operations", "Reminder"].map((c) => <option key={c}>{c}</option>)}</select></Field>
         <Field label="Note" htmlFor="tn-body" required error={errors.content}><textarea id="tn-body" className={`${area} min-h-32`} value={content} onChange={(e) => setContent(e.target.value)} /></Field>
-
-        <fieldset className="rounded-xl border border-line p-4">
-          <legend className="px-1 text-sm font-semibold">Who is this note for?</legend>
-          <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
-            <label className="flex min-h-11 items-center gap-2 text-[15px]"><input type="radio" name="aud" checked={audience === "everyone"} onChange={() => setAudience("everyone")} className="h-4 w-4 accent-[#009FE3]" /> Everyone on the team</label>
-            <label className="flex min-h-11 items-center gap-2 text-[15px]"><input type="radio" name="aud" checked={audience === "specific"} onChange={() => setAudience("specific")} className="h-4 w-4 accent-[#009FE3]" /> Specific departments or people</label>
-          </div>
-
-          {audience === "specific" && (
-            <div className="mt-3 space-y-4 border-t border-line pt-4">
-              <div>
-                <p className="mb-2 text-sm font-semibold">Departments <span className="font-normal text-ink-muted">(everyone in the department sees it)</span></p>
-                <div className="flex flex-wrap gap-2">
-                  {VISA_TYPES.map((v) => {
-                    const on = depts.includes(v.id);
-                    return (
-                      <label key={v.id} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-[15px] ${on ? "border-brand bg-brand-soft font-semibold" : "border-line"}`}>
-                        <input type="checkbox" className="h-4 w-4 accent-[#009FE3]" checked={on} onChange={() => setDepts(on ? depts.filter((t) => t !== v.id) : [...depts, v.id])} /> {v.label}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="tn-find" className="mb-2 block text-sm font-semibold">People <span className="font-normal text-ink-muted">(add individuals)</span></label>
-                <input id="tn-find" className={field} value={find} onChange={(e) => setFind(e.target.value)} placeholder="Search by name" />
-                <ul className="mt-2 max-h-52 divide-y divide-line overflow-y-auto rounded-lg border border-line">
-                  {candidates.length === 0 && <li className="p-3 text-sm text-ink-muted">No one found.</li>}
-                  {candidates.map((u) => {
-                    const on = people.includes(u.id);
-                    return (
-                      <li key={u.id}>
-                        <label className="flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2 hover:bg-brand-tint">
-                          <input type="checkbox" className="h-4 w-4 shrink-0 accent-[#009FE3]" checked={on} onChange={() => setPeople(on ? people.filter((x) => x !== u.id) : [...people, u.id])} />
-                          <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-medium">{u.name}</span><span className="block truncate text-sm text-ink-muted">{ROLE_LABEL[u.role]}{u.role === "consultant" && u.teams.length ? ` · ${u.teams.map((t) => VISA_TYPES.find((v) => v.id === t)?.label).join(", ")}` : ""}</span></span>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-              <p className="rounded-lg bg-brand-tint px-3 py-2 text-sm text-ink-muted">
-                Visible to <strong className="text-ink">{reach.size} {reach.size === 1 ? "person" : "people"}</strong> you chose{leaders > 0 ? `, plus ${leaders} administrator${leaders === 1 ? "" : "s"} and manager${leaders === 1 ? "" : "s"}, who can see every note` : ""}.
-              </p>
-            </div>
-          )}
-          {errors.audience && <p role="alert" className="mt-2 text-sm font-medium text-red-800">{errors.audience}</p>}
-        </fieldset>
-
-        <Toggle checked={pinned} onChange={setPinned} label="Pin to the top" description="Pinned notes also appear on the dashboard for the people they are meant for." />
+        <Toggle checked={pinned} onChange={setPinned} label="Pin to the top" description="Pinned notes also appear on the dashboard." />
         <ModalActions>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
           <button type="submit" className={btn.primary}>{note ? "Save note" : "Add note"}</button>

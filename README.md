@@ -36,7 +36,7 @@ Passwords are not checked in this preview. Set `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=f
 6. **Run an eligibility assessment** (Eligibility tab). The rules are illustrative only.
 7. **Add notes**, edit case details, and download a **PDF** of a client (Print, then Save as PDF).
 8. **Partner tasks**: add a task, drag the progress slider, mark complete.
-9. **Team notepad**: add a note and choose who it is for: everyone, whole departments, and/or named people. Sign in as different people to see who can read what. Pin, edit and delete work too.
+9. **Team notepad**: add, pin, edit, delete.
 10. **Reports**: change the period or visa type, download an Excel-compatible `.csv`, and preview the all-clients PDF.
 11. **Team** (Administrator): departments overview, filter by department, add a member (a temporary password is shown), edit access, deactivate.
 12. **Agents**: add an agent, mark commission paid.
@@ -62,21 +62,6 @@ Pagination, sorting and filters work on Cases (31 demo cases), Clients, Tasks, T
 - The logo is `public/brand/logo.png`, used as supplied. The favicon and app icons were made from the supplied mark. **The source file is small (150 px), so icons may look soft on high-resolution screens. A larger original (512 px or more) gives crisper icons.**
 - Colours are in `tailwind.config.ts`: the logo light blue (`#009FE3`) with dark navy text on it. Each department has its own chip colour and icon (`components/department.tsx`). Status is always written in words, never shown by colour alone.
 - Text is 15 to 16 px or larger, controls are at least 44 px tall, and dialogs trap keyboard focus.
-
-## Responsive behaviour
-
-- Phones and tablets (under 1024 px): the sidebar becomes a menu drawer and pages use the full width.
-- Lists (cases, clients, team, tasks, notes, documents) become cards under 1280 px, and tables appear on wide screens. No screen relies on sideways scrolling.
-- Dialogs open as bottom sheets on phones and centred windows on larger screens.
-
-## Keeping it light and fast
-
-- The only packages are Next.js, React and Tailwind, plus TypeScript for type checking. The large icon package was replaced by a small local icon file (`components/icons.tsx`), and `autoprefixer` was removed.
-- `node_modules` is mostly the Next.js framework itself, which is required. Do not copy `node_modules` or `.next` into zips or cloud-synced folders.
-- For a smooth demo, use `npm run build` then `npm start`. It is much faster than `npm run dev`, which compiles each page on first visit.
-- `npm run dev:turbo` can speed up development. If it ever errors, use `npm run dev`.
-- On Windows, exclude the project folder from antivirus scanning and keep it out of OneDrive or Dropbox.
-- Run `npx next telemetry disable` once to stop usage reporting.
 
 ## Structure
 

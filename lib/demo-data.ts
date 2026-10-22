@@ -102,9 +102,6 @@ export type TeamNote = {
   author: string;
   pinned: boolean;
   updatedAt: string;
-  /** Audience. Both empty means everyone. */
-  departments: TeamId[];
-  people: string[];
 };
 
 /* ─── Reference lists ───────────────────────────────────── */
@@ -359,11 +356,9 @@ export const TASKS: Task[] = [
 ];
 
 export const TEAM_NOTES: TeamNote[] = [
-  { id: "tn1", title: "Document checklist: October update", content: "Bank statements must cover the last six months and show the account holder's name. Scans should be in colour, and passports need every page, including blank ones.", category: "Documents", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-6), departments: [], people: [] },
-  { id: "tn2", title: "Office hours", content: "The office runs Sunday to Thursday. Please confirm any weekend appointments with Layla before offering them to clients.", category: "Operations", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-10), departments: [], people: [] },
-  { id: "tn3", title: "Lead handover", content: "When a social media lead is allocated, record the source and visa interest in the first few minutes so the consultant has context before the first call.", category: "Process", author: "Aun Rehman", pinned: false, updatedAt: isoFromToday(-3), departments: [], people: ["u-omar", "u-noura"] },
-  { id: "tn4", title: "Study intake deadlines", content: "Autumn intake applications close earlier than expected at several universities. Please confirm the closing date with the university before promising a timeline to the client.", category: "Reminder", author: "Aun Rehman", pinned: false, updatedAt: isoFromToday(-2), departments: ["study"], people: [] },
-  { id: "tn5", title: "Language certificates for Work and Skilled", content: "Language certificates older than two years are rejected by some authorities. Ask for a recent test result at the first call, and note the test date on the case.", category: "Documents", author: "Layla Hassan", pinned: false, updatedAt: isoFromToday(-1), departments: ["work", "skilled"], people: [] },
+  { id: "tn1", title: "Document checklist: October update", content: "Bank statements must cover the last six months and show the account holder's name. Scans should be in colour, and passports need every page, including blank ones.", category: "Documents", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-6) },
+  { id: "tn2", title: "Office hours", content: "The office runs Sunday to Thursday. Please confirm any weekend appointments with Layla before offering them to clients.", category: "Operations", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-10) },
+  { id: "tn3", title: "Lead handover", content: "When a social media lead is allocated, record the source and visa interest in the first few minutes so the consultant has context before the first call.", category: "Process", author: "Aun Rehman", pinned: false, updatedAt: isoFromToday(-3) },
 ];
 
 /* ─── Workflow defaults (Admin-configurable later) ──────── */

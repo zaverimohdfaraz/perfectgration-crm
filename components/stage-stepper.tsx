@@ -1,4 +1,4 @@
-import { Check } from "@/components/icons";
+import { Check } from "lucide-react";
 import { STAGES, type StageId, type TeamId } from "@/lib/demo-data";
 
 type StepState = "done" | "current" | "future" | "skipped";
@@ -21,14 +21,14 @@ export function StageStepper({ current, visa }: { current: StageId; visa: TeamId
 
   return (
     <div>
-      <div className="xl:hidden">
+      <div className="md:hidden">
         <p className="text-sm font-semibold">Stage {idx + 1} of {STAGES.length}: {STAGES[idx].label}</p>
         <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-brand-soft" aria-hidden>
           <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
-      <ol aria-label="Case stages" className="hidden gap-2 xl:grid xl:grid-cols-9">
+      <ol aria-label="Case stages" className="hidden gap-2 md:grid md:grid-cols-9">
         {steps.map((s) => (
           <li key={s.id} aria-current={s.state === "current" ? "step" : undefined} className="min-w-0">
             <div className={`mb-2 flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${CIRCLE[s.state]}`}>

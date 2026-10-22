@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Download, FileText } from "@/components/icons";
+import { Download, FileText } from "lucide-react";
 import { PageHeader, Panel, Stat, Button } from "@/components/ui";
 import { ReportPreview } from "@/components/dialogs-admin";
 import { useDemo } from "@/lib/store";
@@ -85,7 +85,7 @@ export default function ReportsPage() {
         </Panel>
         <Panel title="Agent summary" description="Clients referred by each agent." className="xl:col-span-2" flush
           action={canSeeCommission(d.user) ? <Button variant="secondary" onClick={exportCommission}><Download size={18} aria-hidden /> Commission pending (.csv)</Button> : undefined}>
-          <div className="overflow-x-auto"><table className="w-full text-[15px]"><caption className="sr-only">Agent summary</caption><thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Agent</th><th scope="col" className={th}>Referred cases</th>{canSeeCommission(d.user) && <><th scope="col" className={th}>Commission recorded</th><th scope="col" className={th}>Payment</th></>}</tr></thead>
+          <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-[15px]"><caption className="sr-only">Agent summary</caption><thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Agent</th><th scope="col" className={th}>Referred cases</th>{canSeeCommission(d.user) && <><th scope="col" className={th}>Commission recorded</th><th scope="col" className={th}>Payment</th></>}</tr></thead>
             <tbody className="divide-y divide-line">{agentRows.map(({ a, n, comm }) => <tr key={a.id}><td className={td}>{a.name}</td><td className={`${td} tabular-nums`}>{n}</td>{canSeeCommission(d.user) && <><td className={`${td} tabular-nums`}>{comm ? fmtSar(comm) : "None yet"}</td><td className={td}>{a.paid ? "Paid" : "Pending"}</td></>}</tr>)}</tbody></table></div>
         </Panel>
       </div>

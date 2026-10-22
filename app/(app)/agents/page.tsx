@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Handshake, Plus } from "@/components/icons";
+import { Handshake, Plus } from "lucide-react";
 import { PageHeader, Panel, Stat, Button, EmptyState } from "@/components/ui";
 import { Pager } from "@/components/pagination";
 import { Pill } from "@/components/status";

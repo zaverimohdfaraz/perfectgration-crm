@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Plus } from "@/components/icons";
+import { Plus } from "lucide-react";
 import { PageHeader, Panel, EmptyState, Button, ProgressBar } from "@/components/ui";
 import { Pager } from "@/components/pagination";
 import { DeadlineBadge, Pill } from "@/components/status";
@@ -67,7 +67,7 @@ export default function PartnerTasksPage() {
                 const client = d.clients.find((x) => x.id === c?.clientId);
                 const done = t.progress >= 100;
                 return (
-                  <li key={t.id} className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_auto] xl:items-center">
+                  <li key={t.id} className="grid gap-4 p-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_auto] lg:items-center">
                     <div className="min-w-0">
                       <p className="flex flex-wrap items-center gap-2 font-semibold">{t.title}{done && <Pill tone="success">Completed</Pill>}</p>
                       <p className="text-sm text-ink-muted">{t.partner} · {client?.name} · {c?.ref}</p>
@@ -78,7 +78,7 @@ export default function PartnerTasksPage() {
                       <label htmlFor={`pr-${t.id}`} className="sr-only">Update progress for {t.title}</label>
                       <input id={`pr-${t.id}`} type="range" min={0} max={100} step={5} value={t.progress} onChange={(e) => d.setTaskProgress(t.id, Number(e.target.value))} onMouseUp={() => d.toast("Progress updated. (Demo: not saved.)", "info")} onKeyUp={() => undefined} className="mt-2 h-6 w-full max-w-48 accent-[#009FE3]" />
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+                    <div className="flex flex-wrap items-center gap-3 lg:justify-end">
                       {!done && <DeadlineBadge iso={t.deadline} />}
                       {!done && <button type="button" className={`${btn.secondary} !min-h-10 text-sm`} onClick={() => { d.setTaskProgress(t.id, 100); d.toast("Task marked complete. (Demo: not saved.)"); }}>Mark complete</button>}
                       {c && <Link href={`/cases/${c.id}`} className={`${btn.ghost} !min-h-10 text-sm`}>Open case</Link>}

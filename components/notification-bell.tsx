@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Bell, X } from "@/components/icons";
+import { Bell, X } from "lucide-react";
 import { alertsFor, type AlertLevel } from "@/lib/insights";
 import { userById } from "@/lib/demo-data";
 import { useDemo } from "@/lib/store";

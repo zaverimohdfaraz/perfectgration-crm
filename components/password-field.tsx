@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff } from "@/components/icons";
+import { Eye, EyeOff } from "lucide-react";
 
 export function PasswordField() {
   const [show, setShow] = useState(false);

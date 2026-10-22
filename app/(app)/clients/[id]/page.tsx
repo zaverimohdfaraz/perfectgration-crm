@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Pencil, Plus } from "@/components/icons";
+import { Pencil, Plus } from "lucide-react";
 import { PageHeader, Panel, EmptyState, Avatar, Button } from "@/components/ui";
 import { DeadlineBadge, DaysBadge, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
 import { EditClientDialog, IntakeDialog } from "@/components/dialogs-cases";

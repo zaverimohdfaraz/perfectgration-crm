@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AlertTriangle, Briefcase, CalendarClock, CheckCircle2, Clock, Plus, UserPlus } from "@/components/icons";
+import { AlertTriangle, Briefcase, CalendarClock, CheckCircle2, Clock, Plus, UserPlus } from "lucide-react";
 import { PageHeader, Panel, Stat, Button, EmptyState } from "@/components/ui";
 import { Timeline } from "@/components/timeline";
 import { Pill } from "@/components/status";
 import { IntakeDialog } from "@/components/dialogs-cases";
 import { useDemo } from "@/lib/store";
 import { alertsFor, metricsFor, recentActivity, stageCounts, tasksFor } from "@/lib/insights";
-import { canAddCases, visibleNotes } from "@/lib/permissions";
+import { canAddCases } from "@/lib/permissions";
 import { deadlineState, fmtDate } from "@/lib/dates";
 import { btn } from "@/lib/styles";
 
@@ -21,7 +21,7 @@ export default function DashboardPage() {
   const stages = stageCounts(d.user, d.cases);
   const maxStage = Math.max(1, ...stages.map((s) => s.n));
   const dueTasks = tasksFor(d.user, d.tasks).filter((t) => t.progress < 100 && ["overdue", "d1", "d3"].includes(deadlineState(t.deadline)));
-  const pinned = visibleNotes(d.user, d.teamNotes).filter((n) => n.pinned);
+  const pinned = d.teamNotes.filter((n) => n.pinned);
   const firstName = d.user.name.split(" ")[0];
 
   return (

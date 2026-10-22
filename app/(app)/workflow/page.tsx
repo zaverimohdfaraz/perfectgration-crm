@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { RotateCcw } from "@/components/icons";
+import { RotateCcw } from "lucide-react";
 import { PageHeader, Panel, Button, DemoNote } from "@/components/ui";
 import { DeptChip } from "@/components/department";
 import { TemplateDialog } from "@/components/dialogs-admin";
 import { useDemo } from "@/lib/store";
 import { DEFAULT_SLA_DAYS, SLA_RULES, STAGES, VISA_TYPES, stageLabel, type StageId, type Template, type TeamId } from "@/lib/demo-data";
-import { btn, field } from "@/lib/styles";
+import { btn, field, td, th } from "@/lib/styles";
 
 export default function WorkflowPage() {
   const d = useDemo();
@@ -34,35 +34,34 @@ export default function WorkflowPage() {
             {visa === "visit" && <span className="text-sm text-ink-muted">Visit visas skip the Assessment stage.</span>}
           </div>
         </div>
-        <div role="table" aria-label="Pipeline stages, deadlines and default handlers">
-          <div role="row" className="hidden border-b border-line bg-brand-tint px-4 py-3 text-sm font-semibold text-ink-muted md:grid md:grid-cols-[minmax(0,1.6fr)_7rem_minmax(0,1.2fr)] md:gap-4">
-            <span role="columnheader">Stage and standard target</span><span role="columnheader">Deadline (days)</span><span role="columnheader">Default handler</span>
-          </div>
-          <ul className="divide-y divide-line">
-            {STAGES.map((s, i) => {
-              const skipped = visa === "visit" && s.id === "assessment";
-              const key = `${visa}:${s.id}`;
-              return (
-                <li key={s.id} role="row" className={`grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.6fr)_7rem_minmax(0,1.2fr)] md:items-center md:gap-4 ${skipped ? "bg-slate-50 text-ink-muted" : ""}`}>
-                  <div role="cell" className="min-w-0">
-                    <p className="font-medium">{i + 1}. {stageLabel(s.id)}{skipped && <span className="ml-2 text-xs">(skipped)</span>}</p>
-                    <p className="text-sm text-ink-muted">{SLA_RULES.find((r) => r.stage === s.id)?.target}</p>
-                  </div>
-                  <div role="cell">
-                    <label htmlFor={`sla-${s.id}`} className="mb-1 block text-sm font-semibold md:sr-only">Deadline (days)</label>
-                    <input id={`sla-${s.id}`} type="number" min={1} max={60} className={`${field} sm:w-28`} value={sla[s.id]} disabled={s.id === "outcome"} onChange={(e) => setSla({ ...sla, [s.id]: Math.max(1, Math.min(60, Number(e.target.value) || 1)) })} />
-                  </div>
-                  <div role="cell">
-                    <label htmlFor={`h-${s.id}`} className="mb-1 block text-sm font-semibold md:sr-only">Default handler</label>
-                    <select id={`h-${s.id}`} className={field} disabled={skipped} value={handlers[key] ?? ""} onChange={(e) => { const next = { ...handlers }; if (e.target.value) next[key] = e.target.value; else delete next[key]; setHandlers(next); }}>
-                      <option value="">Keep current consultant</option>
-                      {staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[820px] text-[15px]">
+            <caption className="sr-only">Pipeline stages, deadlines and default handlers</caption>
+            <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Stage</th><th scope="col" className={th}>Standard target</th><th scope="col" className={th}>Deadline (days)</th><th scope="col" className={th}>Default handler</th></tr></thead>
+            <tbody className="divide-y divide-line">
+              {STAGES.map((s, i) => {
+                const skipped = visa === "visit" && s.id === "assessment";
+                const key = `${visa}:${s.id}`;
+                return (
+                  <tr key={s.id} className={skipped ? "bg-slate-50 text-ink-muted" : ""}>
+                    <td className={`${td} font-medium`}>{i + 1}. {stageLabel(s.id)}{skipped && <span className="ml-2 text-xs">(skipped)</span>}</td>
+                    <td className={`${td} text-ink-muted`}>{SLA_RULES.find((r) => r.stage === s.id)?.target}</td>
+                    <td className={td}>
+                      <label htmlFor={`sla-${s.id}`} className="sr-only">Deadline in days for {s.label}</label>
+                      <input id={`sla-${s.id}`} type="number" min={1} max={60} className={`${field} w-24`} value={sla[s.id]} disabled={s.id === "outcome"} onChange={(e) => setSla({ ...sla, [s.id]: Math.max(1, Math.min(60, Number(e.target.value) || 1)) })} />
+                    </td>
+                    <td className={td}>
+                      <label htmlFor={`h-${s.id}`} className="sr-only">Default handler for {s.label}</label>
+                      <select id={`h-${s.id}`} className={`${field} max-w-60`} disabled={skipped} value={handlers[key] ?? ""} onChange={(e) => { const next = { ...handlers }; if (e.target.value) next[key] = e.target.value; else delete next[key]; setHandlers(next); }}>
+                        <option value="">Keep current consultant</option>
+                        {staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                      </select>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
         <div className="p-4"><button type="button" className={btn.ghost} onClick={() => setSla(DEFAULT_SLA_DAYS)}>Reset deadlines to standard</button></div>
       </Panel>

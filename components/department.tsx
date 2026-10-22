@@ -1,4 +1,4 @@
-import { Briefcase, Flag, GraduationCap, Plane, Wrench } from "@/components/icons";
+import { Briefcase, Flag, GraduationCap, Plane, Wrench } from "lucide-react";
 import type { TeamId } from "@/lib/demo-data";
 
 /** One look per department, used on the Team page, case lists and the sidebar. Text always accompanies colour and icon. */

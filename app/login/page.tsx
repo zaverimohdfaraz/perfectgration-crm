@@ -17,22 +17,22 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Brand side: logo and image */}
-      <section className="relative flex flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-brand to-brand-deep px-6 py-8 text-center sm:p-10">
+      <section className="relative flex flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-brand to-brand-deep p-10 text-center">
         <div aria-hidden className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-white/15" />
         <div aria-hidden className="absolute -bottom-20 -right-16 h-96 w-96 rounded-full bg-white/10" />
-        <div className="relative rounded-3xl bg-white p-4 shadow-2xl sm:p-8">
-          <Logo className="h-12 w-auto sm:h-24" />
+        <div className="relative rounded-3xl bg-white p-8 shadow-2xl">
+          <Logo className="h-24 w-auto" />
         </div>
-        <p className="relative mt-5 max-w-md text-lg font-semibold text-ink-on sm:mt-10 sm:text-2xl">
+        <p className="relative mt-10 max-w-md text-2xl font-semibold text-ink-on">
           Your gateway to opportunities.
         </p>
-        <p className="relative mt-3 hidden max-w-md text-lg text-ink-on/80 sm:block">
+        <p className="relative mt-3 max-w-md text-lg text-ink-on/80">
           Clients, cases and deadlines, all in one place.
         </p>
       </section>
 
       {/* Form side */}
-      <main className="flex items-center justify-center bg-white px-5 py-8 sm:p-8 md:p-12">
+      <main className="flex items-center justify-center bg-white p-6 md:p-12">
         <div className="w-full max-w-md">
           <h1 className="text-4xl font-bold tracking-tight text-ink">Welcome</h1>
           <p className="mt-3 text-lg text-ink-muted">Sign in with the email and password your administrator gave you.</p>

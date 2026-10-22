@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CheckCircle2, Circle, FileDown, Pencil, StickyNote, UploadCloud } from "@/components/icons";
+import { CheckCircle2, Circle, FileDown, Pencil, StickyNote, UploadCloud } from "lucide-react";
 import { PageHeader, Panel, Tabs, EmptyState, Button } from "@/components/ui";
 import { DaysBadge, DeadlineBadge, Pill, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
 import { StageStepper } from "@/components/stage-stepper";
@@ -15,7 +15,7 @@ import { useDemo, nextStageFor } from "@/lib/store";
 import { STAGES, agentById, stageLabel, userById, visaLabel, type Doc, type TeamId } from "@/lib/demo-data";
 import { canEditCase, canMoveStage, canReactivate, canSeeCase, canSeeCommission, canSeeOutcome, canViewReports, displayStatus } from "@/lib/permissions";
 import { daysBetween, fmtDate, fmtDateTime, fmtSar } from "@/lib/dates";
-import { area, btn, field } from "@/lib/styles";
+import { area, btn, field, td, th } from "@/lib/styles";
 import type { ReactNode } from "react";
 
 const CATEGORIES = ["Passport", "Photographs", "Education certificate", "English certificate", "Bank statement", "Employment evidence", "Visa-specific", "Other"];
@@ -180,7 +180,15 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             <div className="space-y-6 xl:col-span-2">
               <Panel title="Documents" description="Files are stored privately and open only through permission-checked links." flush>
                 {docs.length === 0 ? <EmptyState title="No documents yet" body="Uploaded documents appear here with their review status." /> : (
-                  <ul className="divide-y divide-line">{docs.map((x) => <DocRow key={x.id} doc={x} editable={editable} />)}</ul>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[560px] text-[15px]">
+                      <caption className="sr-only">Documents</caption>
+                      <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Document</th><th scope="col" className={th}>Category</th><th scope="col" className={th}>Uploaded</th><th scope="col" className={th}>Status</th></tr></thead>
+                      <tbody className="divide-y divide-line">
+                        {docs.map((x) => <DocRow key={x.id} doc={x} editable={editable} />)}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </Panel>
               {editable ? <UploadBox caseId={c.id} /> : <Panel><p className="text-sm text-ink-muted">Only the assigned consultant or an administrator can upload documents.</p></Panel>}
@@ -229,22 +237,21 @@ function Item({ label, value }: { label: string; value: ReactNode }) {
 function DocRow({ doc, editable }: { doc: Doc; editable: boolean }) {
   const d = useDemo();
   return (
-    <li className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-      <div className="min-w-0">
-        <p className="break-words font-medium">{doc.name}</p>
-        <p className="text-sm text-ink-muted">{doc.category} · {doc.uploadedBy === "—" ? "Not uploaded yet" : `${doc.uploadedBy} · ${fmtDate(doc.at)}`}</p>
-      </div>
-      <div>
+    <tr>
+      <td className={`${td} font-medium`}>{doc.name}</td>
+      <td className={td}>{doc.category}</td>
+      <td className={`${td} text-sm text-ink-muted`}>{doc.uploadedBy === "—" ? "Not uploaded yet" : `${doc.uploadedBy} · ${fmtDate(doc.at)}`}</td>
+      <td className={td}>
         {editable ? (
           <>
             <label htmlFor={`ds-${doc.id}`} className="sr-only">Status of {doc.name}</label>
-            <select id={`ds-${doc.id}`} className="h-11 w-full rounded-lg border border-line bg-white px-2 text-sm sm:w-auto" value={doc.status} onChange={(e) => { d.setDocStatus(doc.id, e.target.value as Doc["status"]); d.toast("Document status updated. (Demo: not saved.)"); }}>
+            <select id={`ds-${doc.id}`} className="h-10 rounded-lg border border-line bg-white px-2 text-sm" value={doc.status} onChange={(e) => { d.setDocStatus(doc.id, e.target.value as Doc["status"]); d.toast("Document status updated. (Demo: not saved.)"); }}>
               <option value="pending">Waiting for client</option><option value="received">Received</option><option value="verified">Verified</option>
             </select>
           </>
         ) : <Pill tone={DOC_TONE[doc.status]}>{DOC_LABEL[doc.status]}</Pill>}
-      </div>
-    </li>
+      </td>
+    </tr>
   );
 }
 

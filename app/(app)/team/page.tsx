@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, ShieldCheck } from "@/components/icons";
+import { Plus, ShieldCheck } from "lucide-react";
 import { PageHeader, Panel, Avatar, Button, EmptyState } from "@/components/ui";
 import { Pager } from "@/components/pagination";
 import { Pill } from "@/components/status";
@@ -10,7 +10,7 @@ import { AccessDialog, AddUserDialog } from "@/components/dialogs-admin";
 import { useDemo } from "@/lib/store";
 import { ROLE_LABEL, VISA_TYPES, type Role, type TeamId, type User } from "@/lib/demo-data";
 import { fmtDate } from "@/lib/dates";
-import { btn, field } from "@/lib/styles";
+import { btn, field, td, th } from "@/lib/styles";
 
 type Filter = "" | TeamId | "leadership";
 
@@ -72,7 +72,7 @@ export default function TeamPage() {
         actions={<Button onClick={() => setAdding(true)}><Plus size={18} aria-hidden /> Add team member</Button>} />
 
       <h2 className="mb-3 text-lg font-semibold">Departments</h2>
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {VISA_TYPES.map((v) => {
           const x = DEPT[v.id];
           const people = members.filter((u) => u.teams.includes(v.id) && !u.inactive);
@@ -102,27 +102,32 @@ export default function TeamPage() {
               <EmptyState title="No one matches" body="Try a different department or clear the filters."><button type="button" className={btn.secondary} onClick={() => { setFilter(""); setRole(""); setQ(""); }}>Clear filters</button></EmptyState>
             ) : (
               <>
-                <ul className="divide-y divide-line">
-                  {pageRows.map((u) => (
-                    <li key={u.id} className={`space-y-3 p-4 sm:p-5 ${u.id === sel?.id ? "bg-brand-tint" : ""}`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <button type="button" onClick={() => setSelected(u.id)} className="flex min-w-0 items-center gap-3 text-left" aria-label={`View access for ${u.name}`}>
-                          <Avatar name={u.name} />
-                          <span className="min-w-0"><span className="block truncate font-semibold">{u.name}</span><span className="block truncate text-sm text-ink-muted">{u.email}</span></span>
-                        </button>
-                        <Pill tone={u.inactive ? "neutral" : "success"}>{u.inactive ? "Inactive" : "Active"}</Pill>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5" aria-label={`Departments for ${u.name}`}>
-                        <span className="mr-1 text-sm font-medium text-ink-muted">Department:</span>
-                        {u.role === "consultant" ? (u.teams.length ? u.teams.map((t) => <DeptChip key={t} team={t} />) : <span className="text-sm text-ink-muted">None assigned</span>) : <Pill tone="info">All departments</Pill>}
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-sm text-ink-muted">{ROLE_LABEL[u.role]}{u.role === "consultant" ? ` · ${casesOf(u.id)} active ${casesOf(u.id) === 1 ? "case" : "cases"}` : ""}</p>
-                        <button type="button" className={`${btn.secondary} !min-h-10 text-sm`} onClick={() => setEditing(u)}>Edit access</button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-[15px]">
+                    <caption className="sr-only">Team members and their departments</caption>
+                    <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Person</th><th scope="col" className={th}>Department</th><th scope="col" className={th}>Role</th><th scope="col" className={th}>Active cases</th><th scope="col" className={th}>Status</th><th scope="col" className={th}><span className="sr-only">Actions</span></th></tr></thead>
+                    <tbody className="divide-y divide-line">
+                      {pageRows.map((u) => (
+                        <tr key={u.id} className={u.id === sel?.id ? "bg-brand-tint" : "hover:bg-brand-tint/50"}>
+                          <td className={td}>
+                            <button type="button" onClick={() => setSelected(u.id)} className="flex items-center gap-3 text-left" aria-label={`View access for ${u.name}`}>
+                              <Avatar name={u.name} /><span><span className="block font-semibold">{u.name}</span><span className="block text-sm text-ink-muted">{u.email}</span></span>
+                            </button>
+                          </td>
+                          <td className={td}>
+                            <div className="flex flex-wrap gap-1.5">
+                              {u.role === "consultant" ? (u.teams.length ? u.teams.map((t) => <DeptChip key={t} team={t} />) : <span className="text-ink-muted">None assigned</span>) : <Pill tone="info">All departments</Pill>}
+                            </div>
+                          </td>
+                          <td className={td}>{ROLE_LABEL[u.role]}</td>
+                          <td className={`${td} tabular-nums`}>{u.role === "consultant" ? casesOf(u.id) : "—"}</td>
+                          <td className={td}><Pill tone={u.inactive ? "neutral" : "success"}>{u.inactive ? "Inactive" : "Active"}</Pill></td>
+                          <td className={`${td} text-right`}><button type="button" className={`${btn.secondary} !min-h-10 text-sm`} onClick={() => setEditing(u)}>Edit access</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <Pager page={safe} pageSize={size} total={rows.length} onPage={setPage} onPageSize={(n) => { setSize(n); setPage(1); }} sizes={[10, 25]} />
               </>
             )}

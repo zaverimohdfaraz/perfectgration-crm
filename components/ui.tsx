@@ -9,7 +9,7 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
     <header className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div className="min-w-0">
         {eyebrow && <p className="text-sm font-semibold text-brand-deep">{eyebrow}</p>}
-        <h1 className="mt-0.5 break-words text-2xl font-bold tracking-tight text-ink md:text-[28px] md:leading-tight">{title}</h1>
+        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-ink md:text-[28px] md:leading-tight">{title}</h1>
         {description && <p className="mt-1.5 max-w-2xl text-[15px] text-ink-muted">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -49,11 +49,11 @@ export function Panel({
 export function Stat({ label, value, hint, tone = "blue", icon }: { label: string; value: number | string; hint?: string; tone?: "blue" | "red" | "amber" | "green"; icon?: ReactNode }) {
   const chip = { blue: "bg-brand-soft text-brand-deep", red: "bg-red-100 text-red-800", amber: "bg-amber-100 text-amber-900", green: "bg-green-100 text-green-800" }[tone];
   return (
-    <div className="flex min-w-0 items-start gap-4 rounded-xl border border-line bg-white p-4 sm:p-5">
+    <div className="flex items-start gap-4 rounded-xl border border-line bg-white p-5">
       {icon && <span aria-hidden className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${chip}`}>{icon}</span>}
       <div className="min-w-0">
         <p className="text-sm font-medium text-ink-muted">{label}</p>
-        <p className={`mt-0.5 break-words font-bold tabular-nums text-ink ${typeof value === "string" ? "text-xl sm:text-2xl" : "text-3xl"}`}>{value}</p>
+        <p className="mt-0.5 text-3xl font-bold tabular-nums text-ink">{value}</p>
         {hint && <p className="mt-0.5 text-sm text-ink-muted">{hint}</p>}
       </div>
     </div>

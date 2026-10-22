@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { UserPlus } from "@/components/icons";
+import { UserPlus } from "lucide-react";
 import { PageHeader, Panel, EmptyState, Avatar, Button } from "@/components/ui";
 import { Pager } from "@/components/pagination";
 import { IntakeDialog } from "@/components/dialogs-cases";
@@ -52,8 +52,8 @@ export default function ClientsPage() {
           </EmptyState>
         ) : (
           <>
-            <div className="hidden overflow-x-auto xl:block">
-              <table className="w-full min-w-[840px] text-[15px]">
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px] text-[15px]">
                 <caption className="sr-only">Clients</caption>
                 <thead className="border-b border-line bg-brand-tint"><tr>
                   <th scope="col" className={th}>Client</th><th scope="col" className={th}>Nationality</th><th scope="col" className={th}>Visa types</th><th scope="col" className={th}>Cases</th><th scope="col" className={th}>Consultant</th><th scope="col" className={th}>Last updated</th><th scope="col" className={th}>Next follow-up</th>
@@ -78,23 +78,10 @@ export default function ClientsPage() {
                 </tbody>
               </table>
             </div>
-            <ul className="grid gap-px bg-line sm:grid-cols-2 xl:hidden">
-              {pageRows.map(({ client, cases }) => {
-                const next = cases.filter((c) => c.status === "active" && c.deadline).sort((x, y) => (x.deadline! < y.deadline! ? -1 : 1))[0];
-                return (
-                  <li key={client.id} className="bg-white">
-                    <Link href={`/clients/${client.id}`} className="flex h-full items-start gap-3 p-4 hover:bg-brand-tint/50">
-                      <Avatar name={client.name} />
-                      <div className="min-w-0 flex-1">
-                        <p className="break-words font-semibold">{client.name}</p>
-                        <p className="text-sm text-ink-muted">{client.nationality} · {cases.length} {cases.length === 1 ? "case" : "cases"}</p>
-                        <p className="mt-1 text-sm text-ink-muted">{[...new Set(cases.map((c) => visaLabel(c.visa)))].join(", ") || "No cases yet"}</p>
-                        <p className="mt-1 text-sm">{next ? `${deadlineText(next.deadline)} · ${next.ref}` : "No upcoming deadline"}</p>
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
+            <ul className="divide-y divide-line md:hidden">
+              {pageRows.map(({ client, cases }) => (
+                <li key={client.id}><Link href={`/clients/${client.id}`} className="flex items-center gap-3 p-4 hover:bg-brand-tint/50"><Avatar name={client.name} /><div className="min-w-0"><p className="font-semibold">{client.name}</p><p className="text-sm text-ink-muted">{client.nationality} · {cases.length} {cases.length === 1 ? "case" : "cases"}</p></div></Link></li>
+              ))}
             </ul>
             <Pager page={safe} pageSize={pageSize} total={rows.length} onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1); }} />
           </>

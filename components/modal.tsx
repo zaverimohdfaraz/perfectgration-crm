@@ -45,7 +45,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby="modal-title"
         tabIndex={-1}
-        className={`relative flex max-h-[92dvh] w-full ${width} flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl print:max-h-none print:max-w-none print:overflow-visible print:shadow-none`}
+        className={`relative flex max-h-[92vh] w-full ${width} flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl print:max-h-none print:max-w-none print:overflow-visible print:shadow-none`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
           <div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Plus } from "@/components/icons";
+import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import { PageHeader, Panel, EmptyState, Button } from "@/components/ui";
 import { Pager } from "@/components/pagination";
 import { DaysBadge, DeadlineBadge, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
@@ -107,8 +107,8 @@ export default function CasesPage({ searchParams }: { searchParams: SP }) {
           </EmptyState>
         ) : (
           <>
-            <div className="hidden overflow-x-auto xl:block">
-              <table className="w-full min-w-[880px] text-[15px]">
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[960px] text-[15px]">
                 <caption className="sr-only">Cases</caption>
                 <thead className="border-b border-line bg-brand-tint">
                   <tr>
@@ -142,16 +142,15 @@ export default function CasesPage({ searchParams }: { searchParams: SP }) {
               </table>
             </div>
 
-            <ul className="grid gap-px bg-line sm:grid-cols-2 xl:hidden">
+            <ul className="divide-y divide-line md:hidden">
               {rows.map((c) => {
                 const st = displayStatus(d.user, c);
                 return (
-                  <li key={c.id} className="bg-white">
-                    <Link href={`/cases/${c.id}`} className="block h-full space-y-2.5 p-4 hover:bg-brand-tint/50">
-                      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold">{clientName(c.clientId)}</p><p className="text-sm text-ink-muted">{c.ref}</p></div><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></div>
-                      <div className="flex flex-wrap gap-2"><VisaBadge visa={c.visa} /><StageBadge stage={c.stage} /></div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><DaysBadge days={daysBetween(c.stageSince)} /><DeadlineBadge iso={c.deadline} /></div>
-                      <p className="text-sm text-ink-muted">Consultant: {userById(c.consultantId)?.name}</p>
+                  <li key={c.id}>
+                    <Link href={`/cases/${c.id}`} className="block space-y-2.5 p-4 hover:bg-brand-tint/50">
+                      <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{clientName(c.clientId)}</p><p className="text-sm text-ink-muted">{c.ref} · {visaLabel(c.visa)}</p></div><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></div>
+                      <div className="flex flex-wrap gap-2"><StageBadge stage={c.stage} /><DaysBadge days={daysBetween(c.stageSince)} /></div>
+                      <DeadlineBadge iso={c.deadline} />
                     </Link>
                   </li>
                 );

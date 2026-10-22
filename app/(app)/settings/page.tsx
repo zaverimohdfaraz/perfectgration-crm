@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Mail } from "@/components/icons";
+import { Mail } from "lucide-react";
 import { PageHeader, Panel, Button } from "@/components/ui";
 import { Pill } from "@/components/status";
 import { DeptChip } from "@/components/department";
