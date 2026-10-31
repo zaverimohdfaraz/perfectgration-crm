@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { UserPlus } from "lucide-react";
+import { UserPlus } from "@/components/icons";
 import { PageHeader, Panel, EmptyState, Avatar, Button } from "@/components/ui";
 import { Pager } from "@/components/pagination";
 import { IntakeDialog } from "@/components/dialogs-cases";

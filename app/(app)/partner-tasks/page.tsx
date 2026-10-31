@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@/components/icons";
 import { PageHeader, Panel, EmptyState, Button, ProgressBar } from "@/components/ui";
 import { Pager } from "@/components/pagination";
 import { DeadlineBadge, Pill } from "@/components/status";

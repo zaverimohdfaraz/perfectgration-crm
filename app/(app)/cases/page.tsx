@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Plus } from "lucide-react";
+import { use, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, Plus } from "@/components/icons";
 import { PageHeader, Panel, EmptyState, Button } from "@/components/ui";
 import { Pager } from "@/components/pagination";
-import { DaysBadge, DeadlineBadge, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
+import { DaysBadge, DeadlineBadge, Pill, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
 import { IntakeDialog } from "@/components/dialogs-cases";
 import { useDemo } from "@/lib/store";
-import { STAGES, STATUS_LABEL, VISA_TYPES, LEAD_SOURCES, stageNumber, userById, visaLabel, type CaseStatus } from "@/lib/demo-data";
+import { OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, STATUS_LABEL, VISA_TYPES, LEAD_SOURCES, stageNumber, userById, visaLabel, type CaseStatus } from "@/lib/demo-data";
 import { canAddCases, displayStatus } from "@/lib/permissions";
 import { daysBetween, deadlineState } from "@/lib/dates";
 import { btn, field, td, th } from "@/lib/styles";
@@ -16,15 +16,16 @@ import { btn, field, td, th } from "@/lib/styles";
 type SortKey = "client" | "stage" | "days" | "deadline";
 type SP = { q?: string; stage?: string; visa?: string; status?: string; consultant?: string; attention?: string; source?: string };
 
-export default function CasesPage({ searchParams }: { searchParams: SP }) {
+export default function CasesPage({ searchParams }: { searchParams: Promise<SP> }) {
+  const sp = use(searchParams);
   const d = useDemo();
-  const [q, setQ] = useState(searchParams.q ?? "");
-  const [stage, setStage] = useState(searchParams.stage ?? "");
-  const [visa, setVisa] = useState(searchParams.visa ?? "");
-  const [status, setStatus] = useState(searchParams.status ?? "");
-  const [consultant, setConsultant] = useState(searchParams.consultant ?? "");
-  const [source, setSource] = useState(searchParams.source ?? "");
-  const [attention, setAttention] = useState(searchParams.attention === "urgent");
+  const [q, setQ] = useState(sp.q ?? "");
+  const [stage, setStage] = useState(sp.stage ?? "");
+  const [visa, setVisa] = useState(sp.visa ?? "");
+  const [status, setStatus] = useState(sp.status ?? "");
+  const [consultant, setConsultant] = useState(sp.consultant ?? "");
+  const [source, setSource] = useState(sp.source ?? "");
+  const [attention, setAttention] = useState(sp.attention === "urgent");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "deadline", dir: 1 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -87,7 +88,7 @@ export default function CasesPage({ searchParams }: { searchParams: SP }) {
         <div><label htmlFor="f-visa" className="mb-1 block text-sm font-semibold">Visa type</label><select id="f-visa" className={field} value={visa} onChange={(e) => on(setVisa)(e.target.value)}><option value="">All visa types</option>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></div>
         <div><label htmlFor="f-status" className="mb-1 block text-sm font-semibold">Status</label><select id="f-status" className={field} value={status} onChange={(e) => on(setStatus)(e.target.value)}><option value="">All statuses</option>{(Object.keys(STATUS_LABEL) as CaseStatus[]).filter((s) => d.user.role === "admin" || (s !== "approved" && s !== "refused")).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}</select></div>
         {d.user.role !== "consultant" ? (
-          <div><label htmlFor="f-cons" className="mb-1 block text-sm font-semibold">Consultant</label><select id="f-cons" className={field} value={consultant} onChange={(e) => on(setConsultant)(e.target.value)}><option value="">All consultants</option>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+          <div><label htmlFor="f-cons" className="mb-1 block text-sm font-semibold">Responsible</label><select id="f-cons" className={field} value={consultant} onChange={(e) => on(setConsultant)(e.target.value)}><option value="">Everyone</option>{staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
         ) : (
           <div><label htmlFor="f-src" className="mb-1 block text-sm font-semibold">Lead source</label><select id="f-src" className={field} value={source} onChange={(e) => on(setSource)(e.target.value)}><option value="">All sources</option>{LEAD_SOURCES.map((s) => <option key={s}>{s}</option>)}</select></div>
         )}
@@ -115,7 +116,7 @@ export default function CasesPage({ searchParams }: { searchParams: SP }) {
                     <th scope="col" className={th} aria-sort={ariaSort("client")}><SortBtn k="client">Client</SortBtn></th>
                     <th scope="col" className={th}>Visa</th>
                     <th scope="col" className={th} aria-sort={ariaSort("stage")}><SortBtn k="stage">Stage</SortBtn></th>
-                    <th scope="col" className={th}>Consultant</th>
+                    <th scope="col" className={th}>Responsible</th>
                     <th scope="col" className={th}>Status</th>
                     <th scope="col" className={th} aria-sort={ariaSort("days")}><SortBtn k="days">Time in stage</SortBtn></th>
                     <th scope="col" className={th} aria-sort={ariaSort("deadline")}><SortBtn k="deadline">Deadline</SortBtn></th>
@@ -127,10 +128,10 @@ export default function CasesPage({ searchParams }: { searchParams: SP }) {
                     const st = displayStatus(d.user, c);
                     return (
                       <tr key={c.id} className="hover:bg-brand-tint/50">
-                        <td className={td}><Link href={`/cases/${c.id}`} className="font-semibold hover:text-brand-deep hover:underline">{clientName(c.clientId)}</Link><p className="text-sm text-ink-muted">{c.ref}</p></td>
+                        <td className={td}><Link href={`/cases/${c.id}`} className="font-semibold hover:text-brand-deep hover:underline">{clientName(c.clientId)}</Link><p className="text-sm text-ink-muted">{c.ref}</p>{c.priority !== "normal" && <span className="mt-1 inline-block"><Pill tone={c.priority === "urgent" ? "danger" : "warning"}>{PRIORITY_LABEL[c.priority]} priority</Pill></span>}</td>
                         <td className={td}><VisaBadge visa={c.visa} /></td>
                         <td className={td}><StageBadge stage={c.stage} /></td>
-                        <td className={td}>{userById(c.consultantId)?.name}</td>
+                        <td className={td}><p>{d.users.find((u) => u.id === c.consultantId)?.name ?? "Not assigned"}</p><p className="text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}</p></td>
                         <td className={td}><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></td>
                         <td className={td}><DaysBadge days={daysBetween(c.stageSince)} /></td>
                         <td className={td}><DeadlineBadge iso={c.deadline} /></td>

@@ -5,7 +5,7 @@ import { Modal, ModalActions } from "./modal";
 import { Field, Toggle } from "./form";
 import { btn, field, area } from "@/lib/styles";
 import { useDemo } from "@/lib/store";
-import { VISA_TYPES, ROLE_LABEL, type Agent, type Role, type TeamId, type TeamNote, type Template, type User } from "@/lib/demo-data";
+import { VISA_TYPES, ROLE_LABEL, WORK_TEAM_LABEL, type Agent, type Role, type TeamId, type TeamNote, type Template, type User, type WorkTeam } from "@/lib/demo-data";
 import { fromDateInput } from "@/lib/forms";
 
 /* ─── Partner task ──────────────────────────────────────── */
@@ -63,27 +63,93 @@ export function TeamNoteDialog({ note, onClose }: { note?: TeamNote; onClose: ()
   const [content, setContent] = useState(note?.content ?? "");
   const [category, setCategory] = useState(note?.category ?? "Process");
   const [pinned, setPinned] = useState(note?.pinned ?? false);
+  const [audience, setAudience] = useState<"everyone" | "specific">(note && (note.departments.length || note.people.length) ? "specific" : "everyone");
+  const [depts, setDepts] = useState<TeamId[]>(note?.departments ?? []);
+  const [people, setPeople] = useState<string[]>(note?.people ?? []);
+  const [find, setFind] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const candidates = d.users.filter((u) => !u.inactive && u.id !== d.user.id && `${u.name} ${u.email}`.toLowerCase().includes(find.trim().toLowerCase()));
+  const reach = new Set<string>();
+  d.users.forEach((u) => {
+    if (u.inactive || u.id === d.user.id) return;
+    if (people.includes(u.id) || (u.role === "consultant" && u.teams.some((t) => depts.includes(t)))) reach.add(u.id);
+  });
+  const leaders = d.users.filter((u) => u.role !== "consultant" && !u.inactive && u.id !== d.user.id && !reach.has(u.id)).length;
 
   const submit = () => {
     const e: Record<string, string> = {};
     if (!title.trim()) e.title = "Add a title.";
     if (!content.trim()) e.content = "Write the note.";
+    if (audience === "specific" && depts.length === 0 && people.length === 0) e.audience = "Choose at least one department or person, or switch to Everyone.";
     setErrors(e);
     if (Object.keys(e).length) return;
-    if (note) d.updateTeamNote(note.id, { title: title.trim(), content: content.trim(), category, pinned });
-    else d.addTeamNote({ title: title.trim(), content: content.trim(), category, pinned });
+    const aud = audience === "specific" ? { departments: depts, people } : { departments: [] as TeamId[], people: [] as string[] };
+    if (note) d.updateTeamNote(note.id, { title: title.trim(), content: content.trim(), category, pinned, ...aud });
+    else d.addTeamNote({ title: title.trim(), content: content.trim(), category, pinned, ...aud });
     d.toast(note ? "Note updated. (Demo: not saved.)" : "Note added to the team notepad. (Demo: not saved.)");
     onClose();
   };
 
   return (
-    <Modal title={note ? "Edit note" : "New team note"} description="Internal only. Never shown to clients." onClose={onClose}>
-      <form onSubmit={(ev) => { ev.preventDefault(); submit(); }} noValidate className="space-y-4">
-        <Field label="Title" htmlFor="tn-title" required error={errors.title}><input id="tn-title" className={field} value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
-        <Field label="Category" htmlFor="tn-cat"><select id="tn-cat" className={field} value={category} onChange={(e) => setCategory(e.target.value)}>{["Process", "Documents", "Operations", "Reminder"].map((c) => <option key={c}>{c}</option>)}</select></Field>
+    <Modal title={note ? "Edit note" : "New team note"} description="Internal only. Never shown to clients." onClose={onClose} size="lg">
+      <form onSubmit={(ev) => { ev.preventDefault(); submit(); }} noValidate className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2"><Field label="Title" htmlFor="tn-title" required error={errors.title}><input id="tn-title" className={field} value={title} onChange={(e) => setTitle(e.target.value)} /></Field></div>
+          <Field label="Category" htmlFor="tn-cat"><select id="tn-cat" className={field} value={category} onChange={(e) => setCategory(e.target.value)}>{["Process", "Documents", "Operations", "Reminder"].map((c) => <option key={c}>{c}</option>)}</select></Field>
+        </div>
         <Field label="Note" htmlFor="tn-body" required error={errors.content}><textarea id="tn-body" className={`${area} min-h-32`} value={content} onChange={(e) => setContent(e.target.value)} /></Field>
-        <Toggle checked={pinned} onChange={setPinned} label="Pin to the top" description="Pinned notes also appear on the dashboard." />
+
+        <fieldset className="rounded-xl border border-line p-4">
+          <legend className="px-1 text-sm font-semibold">Who is this note for?</legend>
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+            <label className="flex min-h-11 items-center gap-2 text-[15px]"><input type="radio" name="aud" checked={audience === "everyone"} onChange={() => setAudience("everyone")} className="h-4 w-4 accent-[#009FE3]" /> Everyone on the team</label>
+            <label className="flex min-h-11 items-center gap-2 text-[15px]"><input type="radio" name="aud" checked={audience === "specific"} onChange={() => setAudience("specific")} className="h-4 w-4 accent-[#009FE3]" /> Specific departments or people</label>
+          </div>
+
+          {audience === "specific" && (
+            <div className="mt-3 space-y-4 border-t border-line pt-4">
+              <div>
+                <p className="mb-2 text-sm font-semibold">Departments <span className="font-normal text-ink-muted">(everyone in the department sees it)</span></p>
+                <div className="flex flex-wrap gap-2">
+                  {VISA_TYPES.map((v) => {
+                    const on = depts.includes(v.id);
+                    return (
+                      <label key={v.id} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-[15px] ${on ? "border-brand bg-brand-soft font-semibold" : "border-line"}`}>
+                        <input type="checkbox" className="h-4 w-4 accent-[#009FE3]" checked={on} onChange={() => setDepts(on ? depts.filter((t) => t !== v.id) : [...depts, v.id])} /> {v.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="tn-find" className="mb-2 block text-sm font-semibold">People <span className="font-normal text-ink-muted">(add individuals)</span></label>
+                <input id="tn-find" className={field} value={find} onChange={(e) => setFind(e.target.value)} placeholder="Search by name" />
+                <ul className="mt-2 max-h-52 divide-y divide-line overflow-y-auto rounded-lg border border-line">
+                  {candidates.length === 0 && <li className="p-3 text-sm text-ink-muted">No one found.</li>}
+                  {candidates.map((u) => {
+                    const on = people.includes(u.id);
+                    return (
+                      <li key={u.id}>
+                        <label className="flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2 hover:bg-brand-tint">
+                          <input type="checkbox" className="h-4 w-4 shrink-0 accent-[#009FE3]" checked={on} onChange={() => setPeople(on ? people.filter((x) => x !== u.id) : [...people, u.id])} />
+                          <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-medium">{u.name}</span><span className="block truncate text-sm text-ink-muted">{ROLE_LABEL[u.role]}{u.role === "consultant" && u.teams.length ? ` · ${u.teams.map((t) => VISA_TYPES.find((v) => v.id === t)?.label).join(", ")}` : ""}</span></span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              <p className="rounded-lg bg-brand-tint px-3 py-2 text-sm text-ink-muted">
+                Visible to <strong className="text-ink">{reach.size} {reach.size === 1 ? "person" : "people"}</strong> you chose{leaders > 0 ? `, plus ${leaders} administrator${leaders === 1 ? "" : "s"} and manager${leaders === 1 ? "" : "s"}, who can see every note` : ""}.
+              </p>
+            </div>
+          )}
+          {errors.audience && <p role="alert" className="mt-2 text-sm font-medium text-red-800">{errors.audience}</p>}
+        </fieldset>
+
+        <Toggle checked={pinned} onChange={setPinned} label="Pin to the top" description="Pinned notes also appear on the dashboard for the people they are meant for." />
         <ModalActions>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
           <button type="submit" className={btn.primary}>{note ? "Save note" : "Add note"}</button>
@@ -117,6 +183,7 @@ export function AddUserDialog({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("consultant");
+  const [workTeam, setWorkTeam] = useState<WorkTeam>("sales");
   const [teams, setTeams] = useState<TeamId[]>([]);
   const [canAdd, setCanAdd] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -130,7 +197,7 @@ export function AddUserDialog({ onClose }: { onClose: () => void }) {
     if (role === "consultant" && teams.length === 0) e.teams = "Choose at least one visa team.";
     setErrors(e);
     if (Object.keys(e).length) return;
-    const r = d.addUser({ name, email, role, teams: role === "consultant" ? teams : [], title: role === "admin" ? "Administrator" : role === "manager" ? "Manager" : "Visa Consultant", canAdd });
+    const r = d.addUser({ name, email, role, workTeam: role === "consultant" ? workTeam : undefined, teams: role === "consultant" ? teams : [], title: role === "admin" ? "Administrator" : role === "manager" ? "Manager" : WORK_TEAM_LABEL[workTeam], canAdd: canAdd || (role === "consultant" && workTeam === "social") });
     setCreated({ name: r.user.name, email: r.user.email, pw: r.tempPassword });
   };
 
@@ -158,7 +225,7 @@ export function AddUserDialog({ onClose }: { onClose: () => void }) {
             <select id="au-role" className={field} value={role} onChange={(e) => setRole(e.target.value as Role)}>{(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select>
           </Field>
         </div>
-        {role === "consultant" && (<><TeamPicker teams={teams} onChange={setTeams} />{errors.teams && <p role="alert" className="text-sm font-medium text-red-800">{errors.teams}</p>}<Toggle checked={canAdd} onChange={setCanAdd} label="Can add new cases" description="Useful for social media staff who capture leads." /></>)}
+        {role === "consultant" && (<><Field label="Team" htmlFor="au-team" hint="Social Media captures leads, Sales runs calls and deals, Case Manager handles documents and submission."><select id="au-team" className={field} value={workTeam} onChange={(e) => setWorkTeam(e.target.value as WorkTeam)}>{(Object.keys(WORK_TEAM_LABEL) as WorkTeam[]).map((t) => <option key={t} value={t}>{WORK_TEAM_LABEL[t]}</option>)}</select></Field><TeamPicker teams={teams} onChange={setTeams} />{errors.teams && <p role="alert" className="text-sm font-medium text-red-800">{errors.teams}</p>}<Toggle checked={canAdd} onChange={setCanAdd} label="Can add new cases" description="Useful for social media staff who capture leads." /></>)}
         <ModalActions>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
           <button type="submit" className={btn.primary}>Create account</button>
@@ -173,6 +240,7 @@ export function AccessDialog({ user, onClose }: { user: User; onClose: () => voi
   const d = useDemo();
   const self = user.id === d.user.id;
   const [role, setRole] = useState<Role>(user.role);
+  const [workTeam, setWorkTeam] = useState<WorkTeam>(user.workTeam ?? "sales");
   const [teams, setTeams] = useState<TeamId[]>(user.teams);
   const [canAdd, setCanAdd] = useState(!!user.canAdd);
   const [active, setActive] = useState(!user.inactive);
@@ -184,13 +252,13 @@ export function AccessDialog({ user, onClose }: { user: User; onClose: () => voi
         <Field label="Role" htmlFor="ac-role" hint={self ? "You cannot change your own role." : undefined}>
           <select id="ac-role" className={field} value={role} disabled={self} onChange={(e) => setRole(e.target.value as Role)}>{(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select>
         </Field>
-        {role === "consultant" && <TeamPicker teams={teams} onChange={setTeams} />}
+        {role === "consultant" && (<><Field label="Team" htmlFor="ac-team"><select id="ac-team" className={field} value={workTeam} onChange={(e) => setWorkTeam(e.target.value as WorkTeam)}>{(Object.keys(WORK_TEAM_LABEL) as WorkTeam[]).map((t) => <option key={t} value={t}>{WORK_TEAM_LABEL[t]}</option>)}</select></Field><TeamPicker teams={teams} onChange={setTeams} /></>)}
         <div className="divide-y divide-line rounded-lg border border-line px-4">
           <Toggle checked={role === "admin" || canAdd} onChange={setCanAdd} disabled={role === "admin"} label="Can add new cases" description="Lets this person capture new leads and open cases." />
           <Toggle checked={active} onChange={setActive} disabled={self} label="Account is active" description="Inactive accounts cannot sign in." />
         </div>
         <ul className="space-y-1 rounded-lg bg-brand-tint p-4 text-sm text-ink-muted">
-          <li>{role === "admin" ? "Can see everything, including commission and outcomes." : role === "manager" ? "Can see all cases (read only) and reports. Cannot see commission or outcomes." : `Can see ${teams.length ? teams.map((t) => VISA_TYPES.find((v) => v.id === t)?.label).join(", ") : "no"} cases only.`}</li>
+          <li>{role === "admin" ? "Can see everything, including commission and outcomes." : role === "manager" ? "Can see all cases and reports, approve the QC review and log visa outcomes. Cannot see commission." : `Can see ${teams.length ? teams.map((t) => VISA_TYPES.find((v) => v.id === t)?.label).join(", ") : "no"} cases only.`}</li>
           <li>Permissions are enforced on the server, not only in the screens.</li>
         </ul>
         <div>
@@ -200,7 +268,7 @@ export function AccessDialog({ user, onClose }: { user: User; onClose: () => voi
       </div>
       <ModalActions>
         <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
-        <button type="button" className={btn.primary} onClick={() => { d.updateUser(user.id, { role, teams: role === "consultant" ? teams : [], canAdd, inactive: !active }); d.toast("Access updated. (Demo: not saved.)"); onClose(); }}>Save access</button>
+        <button type="button" className={btn.primary} onClick={() => { d.updateUser(user.id, { role, workTeam: role === "consultant" ? workTeam : undefined, teams: role === "consultant" ? teams : [], canAdd, inactive: !active }); d.toast("Access updated. (Demo: not saved.)"); onClose(); }}>Save access</button>
       </ModalActions>
     </Modal>
   );

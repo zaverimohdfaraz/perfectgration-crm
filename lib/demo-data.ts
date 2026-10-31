@@ -4,6 +4,9 @@ import { isoFromToday } from "./dates";
 export type Role = "admin" | "manager" | "consultant";
 export type TeamId = "study" | "work" | "visit" | "skilled" | "eb2niw";
 export type CaseStatus = "active" | "on_hold" | "returned" | "withdrawn" | "refused" | "approved";
+export type WorkTeam = "social" | "sales" | "case";
+export type Priority = "normal" | "high" | "urgent";
+export type StageOwner = "social" | "sales" | "case" | "leadership";
 export type StageId =
   | "enrolled"
   | "firstcall"
@@ -21,6 +24,8 @@ export type User = {
   email: string;
   role: Role;
   teams: TeamId[];
+  /** Function in the process: Social Media, Sales or Case Manager. Not used for Admin or Manager. */
+  workTeam?: WorkTeam;
   title: string;
   canAdd?: boolean;
   inactive?: boolean;
@@ -39,7 +44,7 @@ export type Client = {
 };
 
 export type Note = { text: string; author: string; at: string };
-export type HistoryEntry = { from: StageId | null; to: StageId; actor: string; at: string; note?: string };
+export type HistoryEntry = { from: StageId | null; to: StageId; actor: string; at: string; note?: string; handoff?: string };
 
 export type Case = {
   id: string;
@@ -48,7 +53,24 @@ export type Case = {
   visa: TeamId;
   stage: StageId;
   status: CaseStatus;
+  /** The person responsible right now. It changes at each handoff. */
   consultantId: string;
+  /** Social media team member who captured the lead. */
+  leadById: string;
+  /** Sales consultant tagged at intake. */
+  salesId: string;
+  /** Case manager who takes over after the deal. */
+  caseManagerId: string;
+  priority: Priority;
+  destination: string;
+  budget?: number;
+  appointmentAt?: string;
+  agreementSigned?: boolean;
+  feesCollectedSar?: number | null;
+  docsVerified?: boolean;
+  qcApprovedAt?: string;
+  qcBy?: string;
+  qcNote?: string;
   stageSince: string;
   deadline: string | null;
   leadSource: string;
@@ -82,6 +104,9 @@ export type Doc = {
   status: "pending" | "received" | "verified";
   uploadedBy: string;
   at: string;
+  needsTranslation?: boolean;
+  note?: string;
+  fileName?: string;
 };
 
 export type Task = {
@@ -102,6 +127,9 @@ export type TeamNote = {
   author: string;
   pinned: boolean;
   updatedAt: string;
+  /** Audience. Both empty means everyone. */
+  departments: TeamId[];
+  people: string[];
 };
 
 /* ─── Reference lists ───────────────────────────────────── */
@@ -111,7 +139,7 @@ export const STAGES: { id: StageId; label: string }[] = [
   { id: "assessment", label: "Assessment" },
   { id: "appointment", label: "Office Appointment" },
   { id: "deal", label: "Deal Finalised" },
-  { id: "documents", label: "Documents & Coordination" },
+  { id: "documents", label: "Document Collection" },
   { id: "caseprep", label: "Case Prep" },
   { id: "submitted", label: "Submitted" },
   { id: "outcome", label: "Outcome" },
@@ -150,10 +178,13 @@ export const visaLabel = (id: TeamId) => VISA_TYPES.find((v) => v.id === id)?.la
 export const USERS: User[] = [
   { id: "u-admin", name: "Aun Rehman", email: "admin@perfectgration.com", role: "admin", teams: ["study", "work", "visit", "skilled", "eb2niw"], title: "Administrator", lastSeen: isoFromToday(0) },
   { id: "u-manager", name: "Layla Hassan", email: "manager@perfectgration.com", role: "manager", teams: [], title: "Operations Manager", lastSeen: isoFromToday(0) },
-  { id: "u-omar", name: "Omar Saleh", email: "omar@perfectgration.com", role: "consultant", teams: ["study", "visit"], title: "Visa Consultant", canAdd: true, lastSeen: isoFromToday(0) },
-  { id: "u-noura", name: "Noura Al-Qahtani", email: "noura@perfectgration.com", role: "consultant", teams: ["work", "skilled"], title: "Visa Consultant", lastSeen: isoFromToday(-1) },
-  { id: "u-faisal", name: "Faisal Mansour", email: "faisal@perfectgration.com", role: "consultant", teams: ["eb2niw"], title: "Senior Consultant", lastSeen: isoFromToday(-2) },
-  { id: "u-hadi", name: "Hadi Karim", email: "hadi@perfectgration.com", role: "consultant", teams: ["work"], title: "Visa Consultant", inactive: true, lastSeen: isoFromToday(-40) },
+  { id: "u-omar", name: "Omar Saleh", email: "omar@perfectgration.com", role: "consultant", teams: ["study", "visit"], workTeam: "sales", title: "Sales Consultant", canAdd: true, lastSeen: isoFromToday(0) },
+  { id: "u-noura", name: "Noura Al-Qahtani", email: "noura@perfectgration.com", role: "consultant", teams: ["work", "skilled"], workTeam: "sales", title: "Sales Consultant", lastSeen: isoFromToday(-1) },
+  { id: "u-faisal", name: "Faisal Mansour", email: "faisal@perfectgration.com", role: "consultant", teams: ["eb2niw"], workTeam: "sales", title: "Senior Sales Consultant", lastSeen: isoFromToday(-2) },
+  { id: "u-hadi", name: "Hadi Karim", email: "hadi@perfectgration.com", role: "consultant", teams: ["work"], workTeam: "sales", title: "Sales Consultant", inactive: true, lastSeen: isoFromToday(-40) },
+  { id: "u-reem", name: "Reem Al-Zahrani", email: "reem@perfectgration.com", role: "consultant", teams: ["study", "work", "visit", "skilled", "eb2niw"], workTeam: "social", title: "Social Media Executive", canAdd: true, lastSeen: isoFromToday(0) },
+  { id: "u-sultan", name: "Sultan Haddad", email: "sultan@perfectgration.com", role: "consultant", teams: ["study", "visit"], workTeam: "case", title: "Case Manager", lastSeen: isoFromToday(0) },
+  { id: "u-dina", name: "Dina Karim", email: "dina@perfectgration.com", role: "consultant", teams: ["work", "skilled", "eb2niw"], workTeam: "case", title: "Case Manager", lastSeen: isoFromToday(-1) },
 ];
 
 export const userById = (id: string) => USERS.find((u) => u.id === id);
@@ -192,7 +223,8 @@ const trail = (path: StageId[], sinceDays: number, actor: string): HistoryEntry[
 const STUDY_FULL: StageId[] = ["enrolled", "firstcall", "assessment", "appointment", "deal", "documents", "caseprep", "submitted", "outcome"];
 
 /* ─── Cases ─────────────────────────────────────────────── */
-export const CASES: Case[] = [
+type SeedCase = Omit<Case, "leadById" | "salesId" | "caseManagerId" | "priority" | "destination">;
+const SEED_CASES: SeedCase[] = [
   {
     id: "cs1", ref: "PG-26-0001", clientId: "c1", visa: "study", stage: "documents", status: "active",
     consultantId: "u-omar", stageSince: isoFromToday(-12), deadline: isoFromToday(2), leadSource: "Instagram",
@@ -303,7 +335,7 @@ export const DOCS: Doc[] = [
   { id: "d1", caseId: "cs1", name: "Passport (all pages)", category: "Passport", status: "verified", uploadedBy: "Omar Saleh", at: isoFromToday(-10) },
   { id: "d2", caseId: "cs1", name: "IELTS certificate", category: "English certificate", status: "verified", uploadedBy: "Omar Saleh", at: isoFromToday(-5) },
   { id: "d3", caseId: "cs1", name: "Bank statements (6 months)", category: "Bank statement", status: "pending", uploadedBy: "—", at: isoFromToday(-5) },
-  { id: "d4", caseId: "cs2", name: "Employment letter", category: "Employment evidence", status: "pending", uploadedBy: "—", at: isoFromToday(-4) },
+  { id: "d4", caseId: "cs2", name: "Employment letter", category: "Employment evidence", status: "pending", uploadedBy: "—", at: isoFromToday(-4), needsTranslation: true },
   { id: "d5", caseId: "cs2", name: "Passport scan", category: "Passport", status: "received", uploadedBy: "Noura Al-Qahtani", at: isoFromToday(-3) },
   { id: "d6", caseId: "cs4", name: "Passport copy", category: "Passport", status: "verified", uploadedBy: "Noura Al-Qahtani", at: isoFromToday(-20) },
   { id: "d7", caseId: "cs5", name: "Employer petition draft", category: "Visa-specific", status: "received", uploadedBy: "Faisal Mansour", at: isoFromToday(-4) },
@@ -356,23 +388,26 @@ export const TASKS: Task[] = [
 ];
 
 export const TEAM_NOTES: TeamNote[] = [
-  { id: "tn1", title: "Document checklist: October update", content: "Bank statements must cover the last six months and show the account holder's name. Scans should be in colour, and passports need every page, including blank ones.", category: "Documents", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-6) },
-  { id: "tn2", title: "Office hours", content: "The office runs Sunday to Thursday. Please confirm any weekend appointments with Layla before offering them to clients.", category: "Operations", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-10) },
-  { id: "tn3", title: "Lead handover", content: "When a social media lead is allocated, record the source and visa interest in the first few minutes so the consultant has context before the first call.", category: "Process", author: "Aun Rehman", pinned: false, updatedAt: isoFromToday(-3) },
+  { id: "tn1", title: "Document checklist: October update", content: "Bank statements must cover the last six months and show the account holder's name. Scans should be in colour, and passports need every page, including blank ones.", category: "Documents", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-6), departments: [], people: [] },
+  { id: "tn2", title: "Office hours", content: "The office runs Sunday to Thursday. Please confirm any weekend appointments with Layla before offering them to clients.", category: "Operations", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-10), departments: [], people: [] },
+  { id: "tn3", title: "Lead handover", content: "When a social media lead is allocated, record the source and visa interest in the first few minutes so the consultant has context before the first call.", category: "Process", author: "Aun Rehman", pinned: false, updatedAt: isoFromToday(-3), departments: [], people: ["u-omar", "u-noura"] },
+  { id: "tn4", title: "Study intake deadlines", content: "Autumn intake applications close earlier than expected at several universities. Please confirm the closing date with the university before promising a timeline to the client.", category: "Reminder", author: "Aun Rehman", pinned: false, updatedAt: isoFromToday(-2), departments: ["study"], people: [] },
+  { id: "tn5", title: "Language certificates for Work and Skilled", content: "Language certificates older than two years are rejected by some authorities. Ask for a recent test result at the first call, and note the test date on the case.", category: "Documents", author: "Layla Hassan", pinned: false, updatedAt: isoFromToday(-1), departments: ["work", "skilled"], people: [] },
 ];
 
 /* ─── Workflow defaults (Admin-configurable later) ──────── */
-export const SLA_RULES: { stage: StageId; target: string }[] = [
-  { stage: "enrolled", target: "First call within 24 hours" },
-  { stage: "firstcall", target: "Assessment complete within 48 hours" },
-  { stage: "assessment", target: "Office appointment within 48 hours" },
-  { stage: "appointment", target: "Deal finalised on the day of the visit" },
-  { stage: "deal", target: "Documents requested within 7 days" },
-  { stage: "documents", target: "Case prep within 5 days of documents" },
-  { stage: "caseprep", target: "Submission on the same day as client approval" },
-  { stage: "submitted", target: "Outcome recorded within 24 hours of decision" },
-  { stage: "outcome", target: "Commission logged; case closed or reactivated" },
+export const SLA_RULES: { stage: StageId; target: string; escalation: string }[] = [
+  { stage: "enrolled", target: "Same day as contact", escalation: "Not enrolled after 24 hrs: alert manager" },
+  { stage: "firstcall", target: "Within 24 hours of enrolment", escalation: "No call logged after 24 hrs: CRM flags red" },
+  { stage: "assessment", target: "Within 48 hrs of first call", escalation: "Stuck in First Call for 3+ days: escalate" },
+  { stage: "appointment", target: "Within 48 hrs of assessment", escalation: "No appointment booked after 3 days: manager alert" },
+  { stage: "deal", target: "Same day as office visit", escalation: "Visit done but no deal after 24 hrs: follow-up required" },
+  { stage: "documents", target: "Checklist sent within 24 hrs of deal", escalation: "Incomplete docs after 7 days: reminder sent" },
+  { stage: "caseprep", target: "Complete within 5 working days", escalation: "Prep not done in 7 days: manager escalation" },
+  { stage: "submitted", target: "Submit same day as QC approval", escalation: "Not submitted within 2 days of QC: urgent flag" },
+  { stage: "outcome", target: "Log result same day as decision", escalation: "If refused: review appeal options within 48 hrs" },
 ];
+
 
 
 /* ─── Extra types used by the interactive demo ──────────── */
@@ -380,29 +415,30 @@ export type Template = { id: string; name: string; channel: "WhatsApp" | "Email"
 
 export const DEFAULT_SLA_DAYS: Record<StageId, number> = {
   enrolled: 1, firstcall: 2, assessment: 2, appointment: 2, deal: 1,
-  documents: 7, caseprep: 5, submitted: 1, outcome: 1,
+  documents: 7, caseprep: 5, submitted: 7, outcome: 1,
 };
 
 /** What the case is waiting for, and the next step, once it enters each stage. */
 export const STAGE_GUIDE: Record<StageId, { waitingFor: string; nextAction: string }> = {
   enrolled: { waitingFor: "First call with the client", nextAction: "Call or WhatsApp the client within 24 hours" },
-  firstcall: { waitingFor: "Client's details for the eligibility check", nextAction: "Complete the eligibility assessment" },
-  assessment: { waitingFor: "Assessment result to share with the client", nextAction: "Book an office appointment" },
-  appointment: { waitingFor: "Client to attend the office visit", nextAction: "Confirm the fee and sign the agreement" },
-  deal: { waitingFor: "Service agreement and fee confirmation", nextAction: "Send the document checklist" },
-  documents: { waitingFor: "Documents from the client", nextAction: "Follow up with the client every 2 days" },
-  caseprep: { waitingFor: "Internal review and client approval", nextAction: "Send the final draft to the client for approval" },
-  submitted: { waitingFor: "Decision from the authority", nextAction: "Monitor the application status" },
-  outcome: { waitingFor: "Nothing outstanding", nextAction: "Close the file and log the commission payment" },
+  firstcall: { waitingFor: "Eligibility assessment", nextAction: "Complete the assessment within 48 hours of the call" },
+  assessment: { waitingFor: "Office appointment to be booked", nextAction: "Book the office appointment within 48 hours" },
+  appointment: { waitingFor: "Client to attend the office visit", nextAction: "Finalise the deal on the day of the visit" },
+  deal: { waitingFor: "Signed agreement and collected fees", nextAction: "Confirm the agreement and payment, then hand over to the case manager" },
+  documents: { waitingFor: "Documents from the client", nextAction: "Send the document list within 24 hours, then verify completeness and translations" },
+  caseprep: { waitingFor: "Manager QC sign-off", nextAction: "Complete the file within 5 working days and request QC review" },
+  submitted: { waitingFor: "Decision from the embassy or VFS", nextAction: "Monitor the application status on the embassy or VFS portal" },
+  outcome: { waitingFor: "Nothing outstanding", nextAction: "Notify the client and log the commission" },
 };
+
 
 export const TEMPLATES: Template[] = [
   { id: "t1", name: "WhatsApp: first contact", channel: "WhatsApp", stage: "enrolled",
     body: "Hello [Client Name], this is [Consultant Name] from Perfectgration. Thank you for your enquiry about the [Visa Type] visa. I would love to explain the process and check your eligibility. When is a good time for a quick 5-minute call?" },
   { id: "t2", name: "Email: welcome", channel: "Email", stage: "enrolled",
     body: "Subject: Your visa enquiry with Perfectgration\n\nDear [Client Name],\n\nThank you for contacting Perfectgration. Your enquiry has been assigned to me and I will contact you within 24 hours. Please keep your passport (valid for at least 6 months), recent photographs and previous visa history ready.\n\n[Consultant Name]\n[Consultant Phone]" },
-  { id: "t3", name: "WhatsApp: document checklist", channel: "WhatsApp", stage: "documents",
-    body: "Hello [Client Name], here is your [Visa Type] document checklist: passport (all pages), 2 white-background photos, 3 to 6 months of bank statements and employment evidence. Please send everything within 7 days so we can keep your application on schedule." },
+  { id: "t3", name: "WhatsApp: document list", channel: "WhatsApp", stage: "documents",
+    body: "Hello [Client Name], here is the list of documents we need for your [Visa Type] application: [Document List]. Please send everything within 7 days so we can keep your application on schedule." },
   { id: "t4", name: "Email: application submitted", channel: "Email", stage: "submitted",
     body: "Subject: Your application has been submitted\n\nDear [Client Name],\n\nYour application was submitted on [Submission Date] to [Submitted To]. Your reference number is [Reference]. We will keep monitoring the status and update you within 24 hours of any news." },
 ];
@@ -453,7 +489,7 @@ for (let i = 0; i < 20; i++) {
   const onHold = !isOutcome && rnd() > 0.9;
   const agentId = rnd() > 0.65 ? pick(["ag1", "ag2"]) : undefined;
   const guide = STAGE_GUIDE[stage];
-  CASES.push({
+  SEED_CASES.push({
     id: `cs${12 + i}`,
     ref: `PG-26-${String(12 + i).padStart(4, "0")}`,
     clientId: `c${7 + (i % 14)}`,
@@ -474,3 +510,72 @@ for (let i = 0; i < 20; i++) {
     updatedAt: isoFromToday(-Math.max(0, since - 1)),
   });
 }
+
+
+/* ─── Process: owners, lanes and handoffs (from the client's flowchart) ─── */
+export const STAGE_OWNER: Record<StageId, StageOwner> = {
+  enrolled: "social", firstcall: "sales", assessment: "sales", appointment: "sales", deal: "sales",
+  documents: "case", caseprep: "case", submitted: "case", outcome: "leadership",
+};
+export const OWNER_LABEL: Record<StageOwner, string> = { social: "Social Media Team", sales: "Sales Team", case: "Case Manager", leadership: "Admin / Manager" };
+export const WORK_TEAM_LABEL: Record<WorkTeam, string> = { social: "Social Media Team", sales: "Sales Team", case: "Case Manager" };
+export const PRIORITY_LABEL: Record<Priority, string> = { normal: "Normal", high: "High", urgent: "Urgent" };
+
+export const PROCESS_LANES: { owner: StageOwner; handoff?: string; steps: { label: string; note: string; stage?: StageId }[] }[] = [
+  { owner: "social", handoff: "Handoff to the Sales Team", steps: [
+    { label: "Lead generated", note: "Instagram, Facebook or WhatsApp" },
+    { label: "Qualify interest", note: "Visa type, budget, destination" },
+    { label: "Enrolled in CRM", note: "Same day as contact", stage: "enrolled" },
+    { label: "Assign to Sales", note: "Tag a consultant, set priority" },
+  ] },
+  { owner: "sales", handoff: "Handoff to the Case Manager", steps: [
+    { label: "First call", note: "Within 24 hours", stage: "firstcall" },
+    { label: "Assessment", note: "Within 48 hours of the call", stage: "assessment" },
+    { label: "Office appointment", note: "Within 48 hours of the assessment", stage: "appointment" },
+    { label: "Deal finalised", note: "Same day as the visit", stage: "deal" },
+    { label: "Agreement signed and fees collected", note: "Contract and payment confirmed" },
+  ] },
+  { owner: "case", handoff: "Awaiting outcome", steps: [
+    { label: "Document collection", note: "Document list sent within 24 hours", stage: "documents" },
+    { label: "Verify documents", note: "Completeness check, translations" },
+    { label: "Case prep", note: "Complete within 5 working days", stage: "caseprep" },
+    { label: "Manager review", note: "QC sign-off before submission" },
+    { label: "Submitted", note: "VFS or embassy booking logged", stage: "submitted" },
+  ] },
+  { owner: "leadership", steps: [
+    { label: "Monitor application status", note: "Track the embassy or VFS portal" },
+    { label: "Outcome", note: "Approved: notify client, log commission. Refused: appeal or re-apply, loop back", stage: "outcome" },
+  ] },
+];
+
+const SALES_BY_VISA: Record<TeamId, string> = { study: "u-omar", visit: "u-omar", work: "u-noura", skilled: "u-noura", eb2niw: "u-faisal" };
+const CM_BY_VISA: Record<TeamId, string> = { study: "u-sultan", visit: "u-sultan", work: "u-dina", skilled: "u-dina", eb2niw: "u-dina" };
+const DESTINATION: Record<TeamId, string> = { study: "Canada", work: "Australia", visit: "United Kingdom", skilled: "Germany", eb2niw: "United States" };
+export const DESTINATIONS = ["Canada", "United Kingdom", "Germany", "Australia", "United States", "United Arab Emirates", "Schengen area", "Other"];
+
+/** Who is responsible when a case sits in this stage. */
+export function responsibleFor(stage: StageId, c: { leadById: string; salesId: string; caseManagerId: string }): string {
+  const owner = STAGE_OWNER[stage];
+  return owner === "social" ? c.leadById : owner === "sales" ? c.salesId : c.caseManagerId;
+}
+
+const PRIORITIES: Priority[] = ["normal", "normal", "high", "normal", "urgent"];
+const DAY_MS = 86_400_000;
+
+export const CASES: Case[] = SEED_CASES.map((c, i) => {
+  const ids = { leadById: "u-reem", salesId: SALES_BY_VISA[c.visa], caseManagerId: CM_BY_VISA[c.visa] };
+  const idx = STAGES.findIndex((x) => x.id === c.stage);
+  const since = new Date(c.stageSince).getTime();
+  return {
+    ...c, ...ids,
+    priority: PRIORITIES[i % PRIORITIES.length],
+    destination: DESTINATION[c.visa],
+    consultantId: responsibleFor(c.stage, ids),
+    appointmentAt: c.stage === "appointment" ? new Date(since + DAY_MS).toISOString() : undefined,
+    agreementSigned: idx >= 5 ? true : undefined,
+    feesCollectedSar: idx >= 5 ? 3500 + (i % 4) * 500 : undefined,
+    docsVerified: idx >= 6 ? true : undefined,
+    qcApprovedAt: idx >= 7 || c.ref === "PG-26-0005" ? new Date(since - DAY_MS).toISOString() : undefined,
+    qcBy: idx >= 7 || c.ref === "PG-26-0005" ? "Layla Hassan" : undefined,
+  };
+});

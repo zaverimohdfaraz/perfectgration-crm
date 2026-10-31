@@ -9,15 +9,16 @@ export const SESSION_COOKIE = "pg_session";
  * reviewed by role. Phase 2 replaces this with hashed passwords and a
  * server-side session store. Do not ship this file to production.
  */
-export function getSession(): User | null {
-  const id = cookies().get(SESSION_COOKIE)?.value;
+export async function getSession(): Promise<User | null> {
+  const jar = await cookies();
+  const id = jar.get(SESSION_COOKIE)?.value;
   if (!id) return null;
   const user = USERS.find((u) => u.id === id);
   return user && !user.inactive ? user : null;
 }
 
-export function requireUser(): User {
-  const user = getSession();
+export async function requireUser(): Promise<User> {
+  const user = await getSession();
   if (!user) redirect("/login?error=expired");
   return user;
 }

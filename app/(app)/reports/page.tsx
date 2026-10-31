@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText } from "@/components/icons";
 import { PageHeader, Panel, Stat, Button } from "@/components/ui";
 import { ReportPreview } from "@/components/dialogs-admin";
 import { useDemo } from "@/lib/store";
@@ -19,7 +19,8 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState("all");
   const [visa, setVisa] = useState("");
   const [preview, setPreview] = useState(false);
-  const admin = canSeeOutcome(d.user);
+  const showOutcome = canSeeOutcome(d.user);
+  const showComm = canSeeCommission(d.user);
   const days = PERIODS.find((p) => p.id === period)?.days ?? 100000;
 
   const cases = d.visible.filter((c) => (!visa || c.visa === visa) && daysBetween(c.history[0]?.at ?? c.stageSince) <= days);
@@ -32,13 +33,13 @@ export default function ReportsPage() {
   const refused = cases.filter((c) => c.status === "refused").length;
   const clientName = (id: string) => d.clients.find((c) => c.id === id)?.name ?? "";
 
-  const funnel = STAGES.filter((s) => s.id !== "outcome" || admin).map((s) => ({ ...s, n: cases.filter((c) => c.history.some((h) => h.to === s.id)).length }));
+  const funnel = STAGES.filter((s) => s.id !== "outcome" || showOutcome).map((s) => ({ ...s, n: cases.filter((c) => c.history.some((h) => h.to === s.id)).length }));
   const bySource = LEAD_SOURCES.map((s) => ({ s, n: cases.filter((c) => c.leadSource === s).length, deals: cases.filter((c) => c.leadSource === s && c.history.some((h) => h.to === "deal")).length })).filter((x) => x.n > 0);
   const agentRows = d.agents.map((a) => { const cs = cases.filter((c) => c.agentId === a.id); return { a, n: cs.length, comm: cs.reduce((s, c) => s + (c.commissionSar ?? 0), 0) }; });
 
   const exportCsv = () => {
-    const head = ["Case", "Client", "Visa", "Stage", "Status", "Consultant", "Deadline", "Days in stage", "Lead source", "Agent", ...(admin ? ["Outcome", "Commission (SAR)"] : [])];
-    const rows = cases.map((c) => [c.ref, clientName(c.clientId), visaLabel(c.visa), stageLabel(c.stage), (!admin && (c.status === "approved" || c.status === "refused")) ? "Closed" : c.status, userById(c.consultantId)?.name ?? "", fmtDate(c.deadline), daysBetween(c.stageSince), c.leadSource, agentById(c.agentId)?.name ?? "", ...(admin ? [c.status === "approved" ? "Approved" : c.status === "refused" ? "Refused" : "", c.commissionSar ?? ""] : [])]);
+    const head = ["Case", "Client", "Visa", "Stage", "Status", "Consultant", "Deadline", "Days in stage", "Lead source", "Agent", ...(showOutcome ? ["Outcome"] : []), ...(showComm ? ["Commission (SAR)"] : [])];
+    const rows = cases.map((c) => [c.ref, clientName(c.clientId), visaLabel(c.visa), stageLabel(c.stage), (!showOutcome && (c.status === "approved" || c.status === "refused")) ? "Closed" : c.status, userById(c.consultantId)?.name ?? "", fmtDate(c.deadline), daysBetween(c.stageSince), c.leadSource, agentById(c.agentId)?.name ?? "", ...(showOutcome ? [c.status === "approved" ? "Approved" : c.status === "refused" ? "Refused" : ""] : []), ...(showComm ? [c.commissionSar ?? ""] : [])]);
     downloadCsv("perfectgration-cases.csv", [head, ...rows]);
     d.toast("Downloaded perfectgration-cases.csv. Opens in Excel. (Demo data.)");
   };
@@ -62,7 +63,7 @@ export default function ReportsPage() {
         <Stat label="Cases in this view" value={cases.length} hint={`${active.length} active`} />
         <Stat label="Overdue deadlines" value={overdue} tone={overdue ? "red" : "blue"} />
         <Stat label="Stuck over 21 days" value={stuck.length} tone={stuck.length ? "amber" : "blue"} />
-        {canSeeCommission(d.user) ? <Stat label="Commission recorded" value={fmtSar(commissionTotal)} tone="green" hint={`${approved} approved · ${refused} refused`} /> : <Stat label="Outcomes" value="Restricted" hint="Visible to administrators only" />}
+        {canSeeCommission(d.user) ? <Stat label="Commission recorded" value={fmtSar(commissionTotal)} tone="green" hint={`${approved} approved · ${refused} refused`} /> : <Stat label="Decisions" value={`${approved} / ${refused}`} hint="Approved / refused. Commission is visible to administrators only." />}
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">

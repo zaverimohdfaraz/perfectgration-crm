@@ -1,9 +1,26 @@
 import { STAGES, stageLabel, type Case, type Client, type Task, type User } from "./demo-data";
 import { daysBetween, deadlineState, deadlineText, fmtDate } from "./dates";
-import { visibleCases } from "./permissions";
+import { canSeeOutcome, visibleCases } from "./permissions";
 
 export type AlertLevel = "critical" | "high" | "medium" | "low";
 export type Alert = { id: string; caseId: string; ref: string; client: string; level: AlertLevel; title: string; detail: string };
+
+/** The escalation triggers from the client's process flowchart. Returns null when the case is on time. */
+export function escalationFor(c: Case): { level: AlertLevel; title: string; detail: string } | null {
+  const days = daysBetween(c.stageSince);
+  switch (c.stage) {
+    case "enrolled": return days > 1 ? { level: "critical", title: "No call logged after 24 hrs", detail: `Flagged red · ${days} days since enrolment` } : null;
+    case "firstcall": return days >= 3 ? { level: "critical", title: "Stuck in First Call for 3+ days", detail: `Escalate to the manager · ${days} days` } : null;
+    case "assessment": return days > 3 ? { level: "high", title: "No appointment booked after 3 days", detail: "Manager alert" } : null;
+    case "appointment": return c.appointmentAt && daysBetween(c.appointmentAt) >= 1 ? { level: "high", title: "Visit done but no deal after 24 hrs", detail: "Follow-up required" } : null;
+    case "documents": return days > 7 ? { level: "medium", title: "Incomplete documents after 7 days", detail: "Reminder to the client" } : null;
+    case "caseprep":
+      if (c.qcApprovedAt && daysBetween(c.qcApprovedAt) > 2) return { level: "critical", title: "Not submitted within 2 days of QC", detail: "Urgent flag" };
+      return days > 7 ? { level: "critical", title: "Prep not done in 7 days", detail: "Manager escalation" } : null;
+    case "outcome": return c.status === "refused" && days > 2 ? { level: "high", title: "Review appeal options (48 hrs)", detail: "Refused case needs a decision" } : null;
+    default: return null;
+  }
+}
 
 const nameOf = (clients: Client[], id: string) => clients.find((c) => c.id === id)?.name ?? "Client";
 
@@ -11,9 +28,15 @@ const nameOf = (clients: Client[], id: string) => clients.find((c) => c.id === i
 export function alertsFor(user: User, cases: Case[], clients: Client[]): Alert[] {
   const out: Alert[] = [];
   for (const c of visibleCases(user, cases)) {
-    if (c.status !== "active") continue;
     const client = nameOf(clients, c.clientId);
     const base = { caseId: c.id, ref: c.ref, client };
+    if (c.status === "refused" && canSeeOutcome(user)) {
+      const e = escalationFor(c);
+      if (e) out.push({ ...base, id: `${c.id}-esc`, level: e.level, title: `${e.title}: ${client}`, detail: `${e.detail} · ${c.ref}` });
+    }
+    if (c.status !== "active") continue;
+    const esc = escalationFor(c);
+    if (esc) out.push({ ...base, id: `${c.id}-esc`, level: esc.level, title: `${esc.title}: ${client}`, detail: `${esc.detail} · ${c.ref}` });
     const dl = deadlineState(c.deadline);
     const days = daysBetween(c.stageSince);
 

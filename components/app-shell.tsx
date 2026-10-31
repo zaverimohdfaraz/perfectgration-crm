@@ -82,10 +82,10 @@ export function AppShell({ signOutAction, children }: { signOutAction: () => Pro
     <div className="flex min-h-screen">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2">Skip to content</a>
 
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-white lg:flex print:hidden">{sidebar()}</aside>
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-white md:flex print:hidden">{sidebar()}</aside>
 
       {open && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <button type="button" aria-label="Close menu" className="absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
           <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl">
             <button type="button" onClick={() => setOpen(false)} aria-label="Close menu" className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-lg hover:bg-brand-tint"><X size={20} aria-hidden /></button>
@@ -95,20 +95,19 @@ export function AppShell({ signOutAction, children }: { signOutAction: () => Pro
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-line bg-white px-3 sm:gap-3 sm:px-4 md:px-8 print:hidden">
-          <button type="button" onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg hover:bg-brand-tint lg:hidden"><Menu size={22} aria-hidden /></button>
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-white px-4 md:px-8 print:hidden">
+          <button type="button" onClick={() => setOpen(true)} aria-label="Open menu" aria-expanded={open} className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-brand-tint md:hidden"><Menu size={22} aria-hidden /></button>
           <form action="/cases" role="search" className="relative min-w-0 max-w-md flex-1">
             <label htmlFor="global-search" className="sr-only">Search clients or case references</label>
             <Search aria-hidden size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
             <input id="global-search" name="q" type="search" placeholder="Search clients or case numbers" className="h-10 w-full rounded-lg border border-line bg-brand-tint pl-10 pr-3 text-[15px] placeholder:text-ink-muted focus:border-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/30" />
           </form>
           <div className="ml-auto flex items-center gap-3">
-            <span className="hidden rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 xl:inline">Demo mode · changes are not saved</span>
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900 xl:hidden">Demo</span>
+            <span className="hidden rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 lg:inline">Demo mode · changes are not saved</span>
             <NotificationBell />
           </div>
         </header>
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-5 sm:py-6 md:px-8 md:py-8">
+        <main id="main" tabIndex={-1} className="flex-1 px-4 py-6 md:px-8 md:py-8">
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
       </div>

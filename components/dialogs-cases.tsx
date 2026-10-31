@@ -7,16 +7,17 @@ import { Modal, ModalActions } from "./modal";
 import { Field } from "./form";
 import { btn, field, area } from "@/lib/styles";
 import { useDemo, nextStageFor } from "@/lib/store";
-import { LEAD_SOURCES, STAGES, VISA_TYPES, stageLabel, userById, type Case, type CaseStatus, type StageId, type TeamId } from "@/lib/demo-data";
+import { DESTINATIONS, LEAD_SOURCES, OWNER_LABEL, PRIORITY_LABEL, STAGE_OWNER, VISA_TYPES, responsibleFor, stageLabel, userById, type Case, type CaseStatus, type Priority, type StageId, type TeamId } from "@/lib/demo-data";
+import { canLogOutcome } from "@/lib/permissions";
 import { fmtDate, isoFromToday } from "@/lib/dates";
 import { NATIONALITIES, digits, fromDateInput, toDateInput } from "@/lib/forms";
 
-/* ─── Add client / new case ─────────────────────────────── */
+/* ─── Add client / new case (lead intake) ───────────────── */
 export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client" | "case"; presetClientId?: string; onClose: () => void }) {
   const d = useDemo();
   const router = useRouter();
-  const isConsultant = d.user.role === "consultant";
-  const visaOptions = VISA_TYPES.filter((v) => !isConsultant || d.user.teams.includes(v.id));
+  const restricted = d.user.role === "consultant" && d.user.workTeam !== "social";
+  const visaOptions = VISA_TYPES.filter((v) => !restricted || d.user.teams.includes(v.id));
 
   const [clientMode, setClientMode] = useState<"existing" | "new">(mode === "case" && d.clients.length > 0 ? "existing" : "new");
   const [clientId, setClientId] = useState(presetClientId ?? "");
@@ -26,18 +27,20 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
   const [nationality, setNationality] = useState("Saudi");
   const [alsoCase, setAlsoCase] = useState(true);
   const [visa, setVisa] = useState<TeamId>(visaOptions[0]?.id ?? "study");
+  const [destination, setDestination] = useState(DESTINATIONS[0]);
+  const [budget, setBudget] = useState("");
   const [source, setSource] = useState("Instagram");
+  const [priority, setPriority] = useState<Priority>("normal");
+  const [salesId, setSalesId] = useState("");
   const [agentId, setAgentId] = useState("");
-  const [consultantId, setConsultantId] = useState("");
-  const [deadline, setDeadline] = useState("");
   const [note, setNote] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dupId, setDupId] = useState<string | null>(null);
 
   const useNewClient = mode === "client" || clientMode === "new";
   const needCase = mode === "case" || alsoCase;
-  const eligible = d.users.filter((u) => u.role === "consultant" && !u.inactive && u.teams.includes(visa));
-  const owner = consultantId || (isConsultant && d.user.teams.includes(visa) ? d.user.id : eligible[0]?.id ?? "");
+  const eligible = d.users.filter((u) => u.role === "consultant" && !u.inactive && u.workTeam === "sales" && u.teams.includes(visa));
+  const sales = salesId || (d.user.workTeam === "sales" && eligible.some((u) => u.id === d.user.id) ? d.user.id : eligible[0]?.id ?? "");
 
   const create = (skipDup: boolean) => {
     const e: Record<string, string> = {};
@@ -46,7 +49,7 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
       if (!phone.trim() && !email.trim()) e.phone = "Enter a phone number or an email address.";
       if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) e.email = "That email address does not look right.";
     } else if (!clientId) e.client = "Choose a client.";
-    if (needCase && !owner) e.consultant = "No consultant is available for this visa type.";
+    if (needCase && !sales) e.sales = "No sales consultant is available for this visa type.";
     setErrors(e);
     if (Object.keys(e).length) return;
 
@@ -57,8 +60,8 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
 
     const client = useNewClient ? d.addClient({ name, phone, email, nationality }) : d.clients.find((c) => c.id === clientId)!;
     if (needCase) {
-      const created = d.addCase({ clientId: client.id, visa, consultantId: owner, leadSource: source, agentId: agentId || undefined, deadline: deadline ? fromDateInput(deadline) : null, note: note.trim() || undefined });
-      d.toast(`${useNewClient ? "Client added and " : ""}case ${created.ref} created for ${client.name}. (Demo: not saved.)`);
+      const created = d.addCase({ clientId: client.id, visa, salesId: sales, leadSource: source, priority, destination, budget: budget ? Number(budget) : undefined, agentId: agentId || undefined, note: note.trim() || undefined });
+      d.toast(`${client.name} is enrolled as ${created.ref} and assigned to ${userById(sales)?.name ?? "Sales"}. (Demo: not saved.)`);
       onClose();
       router.push(`/cases/${created.id}`);
     } else {
@@ -71,7 +74,7 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
   const dup = dupId ? d.clients.find((c) => c.id === dupId) : null;
 
   return (
-    <Modal title={mode === "client" ? "Add client" : "New case"} description="Capture the basics now. More details can be added later." onClose={onClose} size="lg">
+    <Modal title={mode === "client" ? "Add client" : "New lead / case"} description="Capture the lead, note what they are interested in, then assign them to a Sales consultant." onClose={onClose} size="lg">
       <form onSubmit={(ev) => { ev.preventDefault(); create(false); }} noValidate className="space-y-5">
         {mode === "case" && (
           <fieldset className="flex flex-wrap gap-5">
@@ -110,30 +113,33 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
 
         {mode === "client" && (
           <label className="flex min-h-11 items-center gap-3 text-[15px] font-medium">
-            <input type="checkbox" checked={alsoCase} onChange={(e) => setAlsoCase(e.target.checked)} className="h-5 w-5 accent-[#009FE3]" /> Open a case now (starts at Enrolled)
+            <input type="checkbox" checked={alsoCase} onChange={(e) => setAlsoCase(e.target.checked)} className="h-5 w-5 accent-[#009FE3]" /> Enrol in the CRM now (starts at Enrolled and goes to Sales)
           </label>
         )}
 
         {needCase && (
           <div className="grid gap-4 border-t border-line pt-5 sm:grid-cols-2">
-            <Field label="Visa type" htmlFor="ic-visa"><select id="ic-visa" className={field} value={visa} onChange={(e) => { setVisa(e.target.value as TeamId); setConsultantId(""); }}>{visaOptions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></Field>
-            <Field label="Assigned consultant" htmlFor="ic-cons" error={errors.consultant}>
-              <select id="ic-cons" className={field} value={owner} onChange={(e) => setConsultantId(e.target.value)} disabled={isConsultant}>
-                {eligible.length === 0 && <option value="">No one on this team</option>}
+            <p className="text-sm font-semibold sm:col-span-2">Qualify interest</p>
+            <Field label="Visa type" htmlFor="ic-visa"><select id="ic-visa" className={field} value={visa} onChange={(e) => { setVisa(e.target.value as TeamId); setSalesId(""); }}>{visaOptions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></Field>
+            <Field label="Destination" htmlFor="ic-dest"><select id="ic-dest" className={field} value={destination} onChange={(e) => setDestination(e.target.value)}>{DESTINATIONS.map((x) => <option key={x}>{x}</option>)}</select></Field>
+            <Field label="Budget (SAR)" htmlFor="ic-budget" hint="Optional"><input id="ic-budget" type="number" min="0" className={field} value={budget} onChange={(e) => setBudget(e.target.value)} /></Field>
+            <Field label="Lead source" htmlFor="ic-src"><select id="ic-src" className={field} value={source} onChange={(e) => setSource(e.target.value)}>{LEAD_SOURCES.map((x) => <option key={x}>{x}</option>)}</select></Field>
+            <p className="mt-2 text-sm font-semibold sm:col-span-2">Assign to Sales</p>
+            <Field label="Sales consultant" htmlFor="ic-sales" required error={errors.sales} hint="They take over after enrolment and must make the first call within 24 hours.">
+              <select id="ic-sales" className={field} value={sales} onChange={(e) => setSalesId(e.target.value)}>
+                {eligible.length === 0 && <option value="">No one on this department</option>}
                 {eligible.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                {isConsultant && !eligible.some((u) => u.id === d.user.id) && <option value={d.user.id}>{d.user.name}</option>}
               </select>
             </Field>
-            <Field label="Lead source" htmlFor="ic-src"><select id="ic-src" className={field} value={source} onChange={(e) => setSource(e.target.value)}>{LEAD_SOURCES.map((s) => <option key={s}>{s}</option>)}</select></Field>
+            <Field label="Priority" htmlFor="ic-prio"><select id="ic-prio" className={field} value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}</select></Field>
             <Field label="Referral agent" htmlFor="ic-agent" hint="Optional"><select id="ic-agent" className={field} value={agentId} onChange={(e) => setAgentId(e.target.value)}><option value="">Direct enquiry</option>{d.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
-            <Field label="Deadline" htmlFor="ic-dl" hint={`Leave empty to use the standard ${d.sla.enrolled} day target`}><input id="ic-dl" type="date" className={field} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></Field>
             <div className="sm:col-span-2"><Field label="First note" htmlFor="ic-note" hint="Optional. Internal only."><textarea id="ic-note" className={area} value={note} onChange={(e) => setNote(e.target.value)} /></Field></div>
           </div>
         )}
 
         <ModalActions>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
-          <button type="submit" className={btn.primary}>{needCase ? "Create case" : "Add client"}</button>
+          <button type="submit" className={btn.primary}>{needCase ? "Enrol and assign to Sales" : "Add client"}</button>
         </ModalActions>
       </form>
     </Modal>
@@ -143,39 +149,47 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
 /* ─── Move stage ────────────────────────────────────────── */
 type StageField = { id: string; label: string; type: "text" | "date" | "number" | "select" | "check"; options?: string[] };
 const STAGE_FIELDS: Partial<Record<StageId, StageField[]>> = {
-  firstcall: [{ id: "summary", label: "Summary of the call", type: "text" }],
+  firstcall: [{ id: "summary", label: "Summary of the first call", type: "text" }],
+  assessment: [{ id: "done", label: "Assessment completed and the result shared with the client", type: "check" }],
   appointment: [{ id: "date", label: "Appointment date", type: "date" }, { id: "place", label: "Location", type: "text" }],
-  deal: [{ id: "fee", label: "Fee agreed (SAR)", type: "number" }],
-  caseprep: [{ id: "checklist", label: "All required documents have been received", type: "check" }],
-  submitted: [{ id: "ref", label: "Submission reference", type: "text" }, { id: "to", label: "Submitted to", type: "select", options: ["Embassy", "VFS Global", "BLS International", "Other"] }],
+  deal: [{ id: "visit", label: "The client attended the office visit", type: "check" }, { id: "fee", label: "Deal fee agreed (SAR)", type: "number" }],
+  documents: [{ id: "agreement", label: "Agreement signed", type: "check" }, { id: "fees", label: "Fees collected (SAR)", type: "number" }, { id: "payment", label: "Payment confirmed", type: "check" }],
+  caseprep: [{ id: "verified", label: "Documents verified: completeness check and translations done", type: "check" }],
+  submitted: [{ id: "ref", label: "Submission reference", type: "text" }, { id: "to", label: "Submitted to", type: "select", options: ["Embassy", "VFS Global", "BLS International", "Other"] }, { id: "booking", label: "VFS or embassy booking date", type: "date" }],
 };
 
 export function MoveStageDialog({ c, onClose }: { c: Case; onClose: () => void }) {
-  const d = useDemo();
   const to = nextStageFor(c);
+  if (!to) return null;
+  return to === "outcome" ? <OutcomeDialog c={c} onClose={onClose} /> : <StageMove c={c} to={to} onClose={onClose} />;
+}
+
+function StageMove({ c, to, onClose }: { c: Case; to: StageId; onClose: () => void }) {
+  const d = useDemo();
   const [vals, setVals] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
-  const [result, setResult] = useState<"approved" | "refused">("approved");
-  const [commission, setCommission] = useState("");
+  const [managerId, setManagerId] = useState(c.caseManagerId);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  if (!to) return null;
 
-  const isOutcome = to === "outcome";
-  const blocked = isOutcome && d.user.role !== "admin";
   const fields = STAGE_FIELDS[to] ?? [];
-  const handler = userById(d.handlers[`${c.visa}:${to}`] ?? "");
+  const ownerChanged = STAGE_OWNER[c.stage] !== STAGE_OWNER[to];
+  const managers = d.users.filter((u) => u.role === "consultant" && !u.inactive && u.workTeam === "case" && u.teams.includes(c.visa));
+  const ids = { leadById: c.leadById, salesId: c.salesId, caseManagerId: to === "documents" ? managerId : c.caseManagerId };
+  const configured = userById(d.handlers[`${c.visa}:${to}`] ?? "");
+  const next = configured ?? d.users.find((u) => u.id === responsibleFor(to, ids));
+  const needsQc = to === "submitted" && !c.qcApprovedAt;
   const skipped = c.visa === "visit" && c.stage === "firstcall" ? "Assessment is skipped for Visit visas." : null;
 
   const submit = () => {
     const e: Record<string, string> = {};
     fields.forEach((f) => { if (!vals[f.id] || vals[f.id] === "false") e[f.id] = f.type === "check" ? "Tick this to continue." : "This is required."; });
+    if (to === "documents" && !managerId) e.manager = "Choose the case manager who takes over.";
     setErrors(e);
     if (Object.keys(e).length) return;
-    const bits = fields.map((f) => (f.type === "check" ? f.label : `${f.label}: ${vals[f.id]}`));
-    if (isOutcome) bits.push(`Outcome: ${result}`);
+    const bits = fields.filter((f) => f.type !== "check").map((f) => `${f.label}: ${vals[f.id]}`);
     const text = [`Moved to ${stageLabel(to)}.`, bits.join(". "), note.trim()].filter(Boolean).join(" ");
-    d.moveStage(c.id, { note: text, result: isOutcome ? result : undefined, commission: result === "approved" && commission ? Number(commission) : undefined });
-    d.toast(`Moved to ${stageLabel(to)}. A history entry was recorded. (Demo: not saved.)`);
+    d.moveStage(c.id, { note: text, caseManagerId: to === "documents" ? managerId : undefined, appointmentAt: to === "appointment" && vals.date ? fromDateInput(vals.date) : undefined, fees: to === "documents" ? Number(vals.fees) : undefined });
+    d.toast(`Moved to ${stageLabel(to)}.${ownerChanged ? ` Handed over to ${next?.name ?? "the next owner"}.` : ""} (Demo: not saved.)`);
     onClose();
   };
 
@@ -186,10 +200,17 @@ export function MoveStageDialog({ c, onClose }: { c: Case; onClose: () => void }
       </div>
       {skipped && <p className="mt-3 text-sm text-ink-muted">{skipped}</p>}
 
-      {blocked ? (
-        <p role="alert" className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">The outcome is recorded by an administrator. Ask an administrator to complete this step.</p>
+      {needsQc ? (
+        <p role="alert" className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">A manager must approve the QC review before this case can be submitted. Ask a manager to sign off from the case page.</p>
       ) : (
         <form onSubmit={(ev) => { ev.preventDefault(); submit(); }} noValidate className="mt-5 space-y-4">
+          {ownerChanged && (
+            <div className="rounded-lg border border-brand/40 bg-brand-soft p-4 text-[15px]">
+              <p className="font-semibold">Handoff to the {OWNER_LABEL[STAGE_OWNER[to]]}</p>
+              <p className="mt-1 text-sm text-ink-muted">{next ? `${next.name} takes over this case.` : "Choose who takes over."}</p>
+            </div>
+          )}
+
           {fields.map((f) => (
             <Field key={f.id} label={f.type === "check" ? "Confirmation" : f.label} htmlFor={`mv-${f.id}`} required error={errors[f.id]}>
               {f.type === "check" ? (
@@ -202,20 +223,20 @@ export function MoveStageDialog({ c, onClose }: { c: Case; onClose: () => void }
             </Field>
           ))}
 
-          {isOutcome && (
-            <>
-              <Field label="Visa decision" htmlFor="mv-result" required>
-                <select id="mv-result" className={field} value={result} onChange={(e) => setResult(e.target.value as "approved" | "refused")}><option value="approved">Approved</option><option value="refused">Refused</option></select>
-              </Field>
-              {result === "approved" && <Field label="Agent commission (SAR)" htmlFor="mv-comm" hint="Visible to administrators only"><input id="mv-comm" type="number" min="0" className={field} value={commission} onChange={(e) => setCommission(e.target.value)} /></Field>}
-            </>
+          {to === "documents" && (
+            <Field label="Case manager who takes over" htmlFor="mv-manager" required error={errors.manager}>
+              <select id="mv-manager" className={field} value={managerId} onChange={(e) => setManagerId(e.target.value)}>
+                <option value="">Select a case manager</option>
+                {managers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </Field>
           )}
 
           <Field label="Note" htmlFor="mv-note" hint="Optional. Added to the case history."><textarea id="mv-note" className={area} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
 
           <ul className="space-y-1 rounded-lg border border-line p-4 text-sm text-ink-muted">
-            {!isOutcome && <li>New deadline: <strong className="text-ink">{fmtDate(isoFromToday(d.sla[to]))}</strong> ({d.sla[to]} {d.sla[to] === 1 ? "day" : "days"} from today)</li>}
-            <li>Handled by: <strong className="text-ink">{handler?.name ?? userById(c.consultantId)?.name}</strong>{handler ? " (default handler for this stage)" : ""}</li>
+            <li>New deadline: <strong className="text-ink">{fmtDate(isoFromToday(d.sla[to]))}</strong> ({d.sla[to]} {d.sla[to] === 1 ? "day" : "days"} from today)</li>
+            <li>Responsible: <strong className="text-ink">{next?.name ?? userById(c.consultantId)?.name}</strong> ({OWNER_LABEL[STAGE_OWNER[to]]}){configured ? " · default handler for this stage" : ""}</li>
             <li>Time in the current stage restarts.</li>
           </ul>
 
@@ -225,7 +246,122 @@ export function MoveStageDialog({ c, onClose }: { c: Case; onClose: () => void }
           </ModalActions>
         </form>
       )}
-      {blocked && <ModalActions><button type="button" className={btn.secondary} onClick={onClose}>Close</button></ModalActions>}
+      {needsQc && <ModalActions><button type="button" className={btn.secondary} onClick={onClose}>Close</button></ModalActions>}
+    </Modal>
+  );
+}
+
+/* ─── Outcome: monitor status, then log the decision ────── */
+function OutcomeDialog({ c, onClose }: { c: Case; onClose: () => void }) {
+  const d = useDemo();
+  const [result, setResult] = useState<"approved" | "refused">("approved");
+  const [notified, setNotified] = useState(false);
+  const [commission, setCommission] = useState("");
+  const [followUp, setFollowUp] = useState<"appeal" | "reapply" | "none">("none");
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  const allowed = canLogOutcome(d.user);
+
+  const submit = () => {
+    if (result === "approved" && !notified) { setErr("Tick this once the client has been notified."); return; }
+    d.logOutcome(c.id, { result, commission: d.user.role === "admin" && commission ? Number(commission) : undefined, followUp: result === "refused" ? followUp : undefined, note: note.trim() || undefined });
+    d.toast(result === "approved" ? "Visa approved. The client is notified. (Demo: not saved.)" : followUp === "appeal" ? "Refused. The case goes back to Case Prep for an appeal. (Demo: not saved.)" : followUp === "reapply" ? "Refused. A new case was opened for the re-application. (Demo: not saved.)" : "Refusal logged. Review appeal options within 48 hours. (Demo: not saved.)");
+    onClose();
+  };
+
+  return (
+    <Modal title="Log the visa outcome" description="Monitor the embassy or VFS portal, then record the decision on the day it is known." onClose={onClose}>
+      {!allowed ? (
+        <>
+          <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">The outcome is logged by an Admin or Manager. Ask them to record the decision.</p>
+          <ModalActions><button type="button" className={btn.secondary} onClick={onClose}>Close</button></ModalActions>
+        </>
+      ) : (
+        <form onSubmit={(ev) => { ev.preventDefault(); submit(); }} noValidate className="space-y-4">
+          <Field label="Decision" htmlFor="oc-result" required>
+            <select id="oc-result" className={field} value={result} onChange={(e) => { setResult(e.target.value as "approved" | "refused"); setErr(""); }}><option value="approved">Approved</option><option value="refused">Refused</option></select>
+          </Field>
+
+          {result === "approved" ? (
+            <>
+              <Field label="Client notified" htmlFor="oc-notified" required error={err}>
+                <label className="flex min-h-11 items-center gap-3 text-[15px]"><input id="oc-notified" type="checkbox" className="h-5 w-5 accent-[#009FE3]" checked={notified} onChange={(e) => { setNotified(e.target.checked); setErr(""); }} /> The client has been told the visa is approved</label>
+              </Field>
+              {d.user.role === "admin" && <Field label="Agent commission (SAR)" htmlFor="oc-comm" hint="Log the commission. Visible to administrators only."><input id="oc-comm" type="number" min="0" className={field} value={commission} onChange={(e) => setCommission(e.target.value)} /></Field>}
+            </>
+          ) : (
+            <fieldset className="space-y-2">
+              <legend className="mb-1 text-sm font-semibold">What happens next? <span className="font-normal text-ink-muted">(review appeal options within 48 hours)</span></legend>
+              {([["appeal", "Appeal", "The case loops back to Case Prep to prepare the appeal."], ["reapply", "Re-apply", "A new case opens at Enrolled for a fresh application."], ["none", "No further action yet", "The case stays closed. Review the options within 48 hours."]] as const).map(([id, label, help]) => (
+                <label key={id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${followUp === id ? "border-brand bg-brand-tint" : "border-line"}`}>
+                  <input type="radio" name="fu" checked={followUp === id} onChange={() => setFollowUp(id)} className="mt-1 h-4 w-4 accent-[#009FE3]" />
+                  <span><span className="block font-semibold">{label}</span><span className="text-sm text-ink-muted">{help}</span></span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+
+          <Field label="Note" htmlFor="oc-note" hint="Optional. Added to the case history."><textarea id="oc-note" className={area} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+          <ModalActions>
+            <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
+            <button type="submit" className={btn.primary}>Log outcome</button>
+          </ModalActions>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
+/* ─── Manager review (QC): return for changes ───────────── */
+export function ReturnQcDialog({ c, onClose }: { c: Case; onClose: () => void }) {
+  const d = useDemo();
+  const [text, setText] = useState("");
+  const [err, setErr] = useState("");
+  return (
+    <Modal title="Return for changes" description="Tell the case manager what needs fixing before this case can be submitted." onClose={onClose}>
+      <form onSubmit={(ev) => { ev.preventDefault(); if (!text.trim()) { setErr("Explain what needs to change."); return; } d.returnQc(c.id, text.trim()); d.toast("Returned to the case manager. (Demo: not saved.)"); onClose(); }} noValidate className="space-y-4">
+        <Field label="What needs to change?" htmlFor="qc-note" required error={err}><textarea id="qc-note" className={`${area} min-h-32`} value={text} onChange={(e) => { setText(e.target.value); setErr(""); }} /></Field>
+        <ModalActions>
+          <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
+          <button type="submit" className={btn.primary}>Return to case manager</button>
+        </ModalActions>
+      </form>
+    </Modal>
+  );
+}
+
+/* ─── Add a document (no fixed list: the team names each one) ─── */
+export function AddDocumentDialog({ caseId, onClose }: { caseId: string; onClose: () => void }) {
+  const d = useDemo();
+  const [name, setName] = useState("");
+  const [note, setNote] = useState("");
+  const [translation, setTranslation] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const pick = (file: File | undefined) => {
+    if (!file) return;
+    if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) { setErrors({ file: "Only PDF, JPG or PNG files are accepted." }); return; }
+    if (file.size > 10 * 1024 * 1024) { setErrors({ file: "That file is larger than 10 MB." }); return; }
+    setErrors({}); setFileName(file.name);
+    if (!name.trim()) setName(file.name.replace(/\.[^.]+$/, ""));
+  };
+
+  return (
+    <Modal title="Add document" description="Give the document a name. Attach the file now, or leave it empty to mark it as waiting for the client." onClose={onClose}>
+      <form onSubmit={(ev) => { ev.preventDefault(); if (!name.trim()) { setErrors({ name: "Enter a name for this document." }); return; } d.addDoc(caseId, { name, note, needsTranslation: translation, fileName: fileName || undefined }); d.toast(fileName ? "Document added with its file. (Demo: the file itself is not stored.)" : "Document added as waiting for the client. (Demo: not saved.)"); onClose(); }} noValidate className="space-y-4">
+        <Field label="Document name" htmlFor="ad-name" required error={errors.name}><input id="ad-name" className={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="For example, Passport copy" /></Field>
+        <Field label="File" htmlFor="ad-file" hint="Optional. PDF, JPG or PNG, up to 10 MB." error={errors.file}>
+          <input id="ad-file" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => pick(e.target.files?.[0])} className="block w-full text-[15px] file:mr-3 file:min-h-11 file:cursor-pointer file:rounded-lg file:border-0 file:bg-brand file:px-4 file:font-semibold file:text-ink-on hover:file:bg-brand-hover" />
+          {fileName && <p className="mt-2 text-sm text-ink-muted">Selected: <strong className="text-ink">{fileName}</strong></p>}
+        </Field>
+        <Field label="Note" htmlFor="ad-note" hint="Optional."><textarea id="ad-note" className={area} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+        <label className="flex min-h-11 items-center gap-3 text-[15px] font-medium"><input type="checkbox" checked={translation} onChange={(e) => setTranslation(e.target.checked)} className="h-5 w-5 accent-[#009FE3]" /> This document needs a translation</label>
+        <ModalActions>
+          <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
+          <button type="submit" className={btn.primary}>Add document</button>
+        </ModalActions>
+      </form>
     </Modal>
   );
 }
@@ -273,18 +409,32 @@ export function EditCaseDialog({ c, onClose }: { c: Case; onClose: () => void })
   const [deadline, setDeadline] = useState(toDateInput(c.deadline));
   const [nextAction, setNextAction] = useState(c.nextAction);
   const [waitingFor, setWaitingFor] = useState(c.waitingFor);
-  const [consultantId, setConsultantId] = useState(c.consultantId);
+  const [salesId, setSalesId] = useState(c.salesId);
+  const [managerId, setManagerId] = useState(c.caseManagerId);
+  const [priority, setPriority] = useState<Priority>(c.priority);
   const [source, setSource] = useState(c.leadSource);
   const [agentId, setAgentId] = useState(c.agentId ?? "");
-  const eligible = d.users.filter((u) => u.role === "consultant" && !u.inactive && u.teams.includes(c.visa));
+  const salesPool = d.users.filter((u) => u.role === "consultant" && !u.inactive && u.workTeam === "sales" && u.teams.includes(c.visa));
+  const managerPool = d.users.filter((u) => u.role === "consultant" && !u.inactive && u.workTeam === "case" && u.teams.includes(c.visa));
+
+  const save = () => {
+    const ids = { leadById: c.leadById, salesId, caseManagerId: managerId };
+    d.updateCase(c.id, { deadline: deadline ? fromDateInput(deadline) : null, nextAction, waitingFor, salesId, caseManagerId: managerId, consultantId: responsibleFor(c.stage, ids) || c.consultantId, priority, leadSource: source, agentId: agentId || undefined });
+    d.toast("Case details saved. (Demo: not saved.)");
+    onClose();
+  };
 
   return (
     <Modal title="Edit case details" onClose={onClose} size="lg">
-      <form onSubmit={(ev) => { ev.preventDefault(); d.updateCase(c.id, { deadline: deadline ? fromDateInput(deadline) : null, nextAction, waitingFor, consultantId, leadSource: source, agentId: agentId || undefined }); d.toast("Case details saved. (Demo: not saved.)"); onClose(); }} className="space-y-4">
+      <form onSubmit={(ev) => { ev.preventDefault(); save(); }} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Deadline" htmlFor="ec-dl"><input id="ec-dl" type="date" className={field} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></Field>
-          <Field label="Assigned consultant" htmlFor="ec-cons" hint={admin ? undefined : "Only an administrator can reassign"}>
-            <select id="ec-cons" className={field} value={consultantId} disabled={!admin} onChange={(e) => setConsultantId(e.target.value)}>{eligible.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}{!eligible.some((u) => u.id === consultantId) && <option value={consultantId}>{userById(consultantId)?.name}</option>}</select>
+          <Field label="Priority" htmlFor="ec-prio"><select id="ec-prio" className={field} value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}</select></Field>
+          <Field label="Sales consultant" htmlFor="ec-sales" hint={admin ? undefined : "Only an administrator can reassign"}>
+            <select id="ec-sales" className={field} value={salesId} disabled={!admin} onChange={(e) => setSalesId(e.target.value)}>{salesPool.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}{!salesPool.some((u) => u.id === salesId) && <option value={salesId}>{userById(salesId)?.name ?? "Not assigned"}</option>}</select>
+          </Field>
+          <Field label="Case manager" htmlFor="ec-cm" hint={admin ? undefined : "Only an administrator can reassign"}>
+            <select id="ec-cm" className={field} value={managerId} disabled={!admin} onChange={(e) => setManagerId(e.target.value)}><option value="">Not assigned yet</option>{managerPool.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}{managerId && !managerPool.some((u) => u.id === managerId) && <option value={managerId}>{userById(managerId)?.name}</option>}</select>
           </Field>
           <div className="sm:col-span-2"><Field label="Next step" htmlFor="ec-next"><input id="ec-next" className={field} value={nextAction} onChange={(e) => setNextAction(e.target.value)} /></Field></div>
           <div className="sm:col-span-2"><Field label="Waiting for" htmlFor="ec-wait"><input id="ec-wait" className={field} value={waitingFor} onChange={(e) => setWaitingFor(e.target.value)} /></Field></div>

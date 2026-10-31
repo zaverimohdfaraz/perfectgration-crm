@@ -1,5 +1,7 @@
-import { Check } from "lucide-react";
-import { STAGES, type StageId, type TeamId } from "@/lib/demo-data";
+import { Check } from "@/components/icons";
+import { STAGES, STAGE_OWNER, type StageId, type TeamId } from "@/lib/demo-data";
+
+const SHORT = { social: "Social Media", sales: "Sales", case: "Case Manager", leadership: "Admin / Manager" } as const;
 
 type StepState = "done" | "current" | "future" | "skipped";
 
@@ -37,6 +39,7 @@ export function StageStepper({ current, visa }: { current: StageId; visa: TeamId
             <p className={`text-[13px] leading-snug ${s.state === "current" ? "font-bold text-ink" : "text-ink-muted"}`}>
               {s.label}
               {s.state === "skipped" && <span className="block text-xs">Skipped for Visit</span>}
+              <span className="mt-0.5 block text-[11px] font-medium uppercase tracking-wide text-brand-deep">{SHORT[STAGE_OWNER[s.id]]}</span>
             </p>
           </li>
         ))}

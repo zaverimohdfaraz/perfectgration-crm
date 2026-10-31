@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { use, useState } from "react";
+import { Pencil, Plus } from "@/components/icons";
 import { PageHeader, Panel, EmptyState, Avatar, Button } from "@/components/ui";
 import { DeadlineBadge, DaysBadge, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
 import { EditClientDialog, IntakeDialog } from "@/components/dialogs-cases";
@@ -12,11 +12,12 @@ import { canAddCases, canEditCase, displayStatus } from "@/lib/permissions";
 import { daysBetween, fmtDate } from "@/lib/dates";
 import { btn } from "@/lib/styles";
 
-export default function ClientProfilePage({ params }: { params: { id: string } }) {
+export default function ClientProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const d = useDemo();
   const [dlg, setDlg] = useState<null | "edit" | "case">(null);
-  const client = d.clients.find((c) => c.id === params.id);
-  const cases = d.visible.filter((c) => c.clientId === params.id);
+  const client = d.clients.find((c) => c.id === id);
+  const cases = d.visible.filter((c) => c.clientId === id);
 
   if (!client || (cases.length === 0 && d.user.role === "consultant")) {
     return <Panel><EmptyState title="Client not found" body="They may not exist, or you may not have access to their cases."><Link href="/clients" className={btn.primary}>Back to clients</Link></EmptyState></Panel>;

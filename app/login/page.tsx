@@ -1,7 +1,7 @@
 import { Logo } from "@/components/logo";
 import { PasswordField } from "@/components/password-field";
 import { SubmitButton } from "@/components/submit-button";
-import { ROLE_LABEL, USERS, visaLabel } from "@/lib/demo-data";
+import { ROLE_LABEL, USERS, WORK_TEAM_LABEL, visaLabel } from "@/lib/demo-data";
 import { signIn } from "./actions";
 
 const MESSAGES: Record<string, string> = {
@@ -10,8 +10,10 @@ const MESSAGES: Record<string, string> = {
   expired: "Your session has ended. Please sign in again.",
 };
 
-export default function LoginPage({ searchParams }: { searchParams: { error?: string; email?: string } }) {
-  const error = searchParams.error ? MESSAGES[searchParams.error] : undefined;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; email?: string }> }) {
+  const sp = await searchParams;
+  const error = sp.error ? MESSAGES[sp.error] : undefined;
+  const gated = Boolean(process.env.DEMO_ACCESS_CODE);
   const showDemo = process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS !== "false";
 
   return (
@@ -52,7 +54,7 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
                 type="email"
                 autoComplete="username"
                 required
-                defaultValue={searchParams.email ?? ""}
+                defaultValue={sp.email ?? ""}
                 placeholder="name@perfectgration.com"
                 className="mt-2 h-14 w-full rounded-xl border border-line bg-white px-4 text-lg text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/25"
               />
@@ -61,7 +63,7 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
             <SubmitButton pendingLabel="Signing in…">Sign in</SubmitButton>
           </form>
 
-          <p className="mt-6 text-base text-ink-muted">Forgot your password? Ask your administrator to reset it.</p>
+          <p className="mt-6 text-base text-ink-muted">{gated ? "This is a private preview. Use the access code you were given as the password." : "Forgot your password? Ask your administrator to reset it."}</p>
 
           {showDemo && (
             <div className="mt-10 rounded-2xl bg-brand-tint p-6">
@@ -71,7 +73,7 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
                   <li key={u.id} className="flex items-center justify-between gap-3 py-3">
                     <span>
                       <span className="block font-semibold">{u.name}</span>
-                      <span className="block text-sm text-ink-muted">{ROLE_LABEL[u.role]}{u.role === "consultant" && u.teams.length ? ` · ${u.teams.map((t) => visaLabel(t)).join(", ")}` : ""}{u.inactive ? " · inactive" : ""}</span>
+                      <span className="block text-sm text-ink-muted">{u.workTeam ? WORK_TEAM_LABEL[u.workTeam] : ROLE_LABEL[u.role]}{u.role === "consultant" && u.teams.length ? ` · ${u.teams.map((t) => visaLabel(t)).join(", ")}` : ""}{u.inactive ? " · inactive" : ""}</span>
                     </span>
                     <a href={`/login?email=${encodeURIComponent(u.email)}`} className="inline-flex min-h-11 items-center rounded-lg px-3 font-semibold text-brand-deep hover:bg-white">
                       Use

@@ -1,34 +1,37 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, ShieldCheck } from "lucide-react";
+import { Plus, ShieldCheck } from "@/components/icons";
 import { PageHeader, Panel, Avatar, Button, EmptyState } from "@/components/ui";
 import { Pager } from "@/components/pagination";
 import { Pill } from "@/components/status";
-import { DEPT, DeptChip, DeptIcon } from "@/components/department";
+import { DEPT, DeptChip, DeptIcon, TeamChip, TeamIcon } from "@/components/department";
 import { AccessDialog, AddUserDialog } from "@/components/dialogs-admin";
 import { useDemo } from "@/lib/store";
-import { ROLE_LABEL, VISA_TYPES, type Role, type TeamId, type User } from "@/lib/demo-data";
+import { OWNER_LABEL, ROLE_LABEL, STAGE_OWNER, VISA_TYPES, type Role, type StageOwner, type TeamId, type User } from "@/lib/demo-data";
 import { fmtDate } from "@/lib/dates";
 import { btn, field, td, th } from "@/lib/styles";
 
-type Filter = "" | TeamId | "leadership";
+type Filter = "" | TeamId | StageOwner;
 
 function access(u: User) {
   const admin = u.role === "admin";
   const manager = u.role === "manager";
+  const social = u.workTeam === "social";
   return [
     { group: "Cases", items: [
-      { label: admin || manager ? "Sees cases from every department" : "Sees cases from their own departments only", on: true },
-      { label: "Add new cases", on: admin || !!u.canAdd, note: "Can be granted to a person" },
-      { label: "Move stages on cases they handle", on: !manager },
+      { label: admin || manager ? "Sees cases from every department" : social ? "Sees the leads they captured" : "Sees cases from their own departments", on: true },
+      { label: "Capture leads and add new cases", on: admin || !!u.canAdd || social, note: social ? "Part of the Social Media Team role" : "Can be granted to a person" },
+      { label: "Works on cases at the stages their team owns", on: !admin && !manager, note: u.workTeam ? OWNER_LABEL[u.workTeam] + " stages only" : undefined },
     ]},
-    { group: "Sensitive data", items: [
-      { label: "See commission and final outcomes", on: admin, note: "Administrators only" },
+    { group: "Review and outcome", items: [
+      { label: "Approve the QC review before submission", on: admin || manager },
+      { label: "Log the visa outcome", on: admin || manager },
+      { label: "See commission", on: admin, note: "Administrators only" },
       { label: "Reports and exports", on: admin || manager },
     ]},
     { group: "Administration", items: [
-      { label: "Manage people, departments and permissions", on: admin },
+      { label: "Manage people, teams and permissions", on: admin },
       { label: "Agents, workflow setup and settings", on: admin },
       { label: "Reactivate ended cases", on: admin },
     ]},
@@ -54,7 +57,8 @@ export default function TeamPage() {
     const needle = q.trim().toLowerCase();
     return d.users.filter((u) => {
       if (filter === "leadership" && u.role === "consultant") return false;
-      if (filter && filter !== "leadership" && !(u.role === "consultant" && u.teams.includes(filter))) return false;
+      if ((filter === "social" || filter === "sales" || filter === "case") && !(u.role === "consultant" && u.workTeam === filter)) return false;
+      if (filter && !["leadership", "social", "sales", "case"].includes(filter) && !(u.role === "consultant" && u.teams.includes(filter as TeamId))) return false;
       if (role && u.role !== role) return false;
       if (needle && !`${u.name} ${u.email}`.toLowerCase().includes(needle)) return false;
       return true;
@@ -71,7 +75,26 @@ export default function TeamPage() {
       <PageHeader eyebrow="Administration" title="Team" description="Everyone with access, and the department each person works in. Team members see only their own departments."
         actions={<Button onClick={() => setAdding(true)}><Plus size={18} aria-hidden /> Add team member</Button>} />
 
-      <h2 className="mb-3 text-lg font-semibold">Departments</h2>
+      <h2 className="mb-1 text-lg font-semibold">Teams</h2>
+      <p className="mb-3 text-sm text-ink-muted">Who owns which part of a case. Responsibility moves between teams at each handoff.</p>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {(["social", "sales", "case", "leadership"] as StageOwner[]).map((t) => {
+          const people = d.users.filter((u) => !u.inactive && (t === "leadership" ? u.role !== "consultant" : u.role === "consultant" && u.workTeam === t));
+          const stages = Object.entries(STAGE_OWNER).filter(([, o]) => o === t).length;
+          const active = d.cases.filter((c) => c.status === "active" && STAGE_OWNER[c.stage] === t).length;
+          const on = filter === t;
+          return (
+            <button key={t} type="button" aria-pressed={on} onClick={() => { setFilter(on ? "" : t); setPage(1); }}
+              className={`flex flex-col gap-3 rounded-xl border bg-white p-4 text-left transition-colors hover:bg-brand-tint ${on ? "border-transparent ring-2 ring-brand" : "border-line"}`}>
+              <div className="flex items-center gap-3"><TeamIcon team={t} /><div><p className="text-base font-bold">{OWNER_LABEL[t]}</p><p className="text-sm text-ink-muted">{stages === 1 ? "1 stage" : `${stages} stages`}</p></div></div>
+              <div className="flex gap-6 text-sm"><span><strong className="block text-xl tabular-nums">{people.length}</strong><span className="text-ink-muted">{people.length === 1 ? "member" : "members"}</span></span><span><strong className="block text-xl tabular-nums">{active}</strong><span className="text-ink-muted">cases with this team</span></span></div>
+              <p className="min-h-5 truncate text-sm text-ink-muted">{people.map((p) => p.name.split(" ")[0]).join(", ") || "No one assigned yet"}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      <h2 className="mb-3 text-lg font-semibold">Departments (visa types)</h2>
       <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {VISA_TYPES.map((v) => {
           const x = DEPT[v.id];
@@ -93,7 +116,7 @@ export default function TeamPage() {
         <div>
           <form role="search" onSubmit={(e) => e.preventDefault()} className="mb-4 grid gap-3 rounded-xl border border-line bg-white p-4 sm:grid-cols-3">
             <div className="sm:col-span-1"><label htmlFor="tm-q" className="mb-1 block text-sm font-semibold">Search</label><input id="tm-q" className={field} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Name or email" /></div>
-            <div><label htmlFor="tm-dept" className="mb-1 block text-sm font-semibold">Department</label><select id="tm-dept" className={field} value={filter} onChange={(e) => { setFilter(e.target.value as Filter); setPage(1); }}><option value="">All departments</option>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}<option value="leadership">Administrators and managers</option></select></div>
+            <div><label htmlFor="tm-dept" className="mb-1 block text-sm font-semibold">Team or department</label><select id="tm-dept" className={field} value={filter} onChange={(e) => { setFilter(e.target.value as Filter); setPage(1); }}><option value="">Everyone</option>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}<option value="social">Social Media Team</option><option value="sales">Sales Team</option><option value="case">Case Manager</option><option value="leadership">Admin / Manager</option></select></div>
             <div><label htmlFor="tm-role" className="mb-1 block text-sm font-semibold">Role</label><select id="tm-role" className={field} value={role} onChange={(e) => { setRole(e.target.value as "" | Role); setPage(1); }}><option value="">All roles</option>{(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</select></div>
           </form>
 
@@ -103,9 +126,9 @@ export default function TeamPage() {
             ) : (
               <>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-[15px]">
+                  <table className="w-full min-w-[900px] text-[15px]">
                     <caption className="sr-only">Team members and their departments</caption>
-                    <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Person</th><th scope="col" className={th}>Department</th><th scope="col" className={th}>Role</th><th scope="col" className={th}>Active cases</th><th scope="col" className={th}>Status</th><th scope="col" className={th}><span className="sr-only">Actions</span></th></tr></thead>
+                    <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Person</th><th scope="col" className={th}>Team</th><th scope="col" className={th}>Department</th><th scope="col" className={th}>Role</th><th scope="col" className={th}>Active cases</th><th scope="col" className={th}>Status</th><th scope="col" className={th}><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody className="divide-y divide-line">
                       {pageRows.map((u) => (
                         <tr key={u.id} className={u.id === sel?.id ? "bg-brand-tint" : "hover:bg-brand-tint/50"}>
@@ -114,6 +137,7 @@ export default function TeamPage() {
                               <Avatar name={u.name} /><span><span className="block font-semibold">{u.name}</span><span className="block text-sm text-ink-muted">{u.email}</span></span>
                             </button>
                           </td>
+                          <td className={td}>{u.role === "consultant" ? (u.workTeam ? <TeamChip team={u.workTeam} /> : <span className="text-ink-muted">Not set</span>) : <TeamChip team="leadership" />}</td>
                           <td className={td}>
                             <div className="flex flex-wrap gap-1.5">
                               {u.role === "consultant" ? (u.teams.length ? u.teams.map((t) => <DeptChip key={t} team={t} />) : <span className="text-ink-muted">None assigned</span>) : <Pill tone="info">All departments</Pill>}
@@ -137,6 +161,10 @@ export default function TeamPage() {
 
         {sel && (
           <Panel title={sel.name} description={`${ROLE_LABEL[sel.role]} · last seen ${fmtDate(sel.lastSeen)}`} className="self-start">
+            <div className="mb-4">
+              <p className="mb-2 text-sm font-semibold text-ink-muted">Team</p>
+              <div className="flex flex-wrap gap-2">{sel.role === "consultant" ? (sel.workTeam ? <TeamChip team={sel.workTeam} /> : <span className="text-sm text-ink-muted">Not set</span>) : <TeamChip team="leadership" />}</div>
+            </div>
             <div className="mb-5">
               <p className="mb-2 text-sm font-semibold text-ink-muted">Department</p>
               <div className="flex flex-wrap gap-2">{sel.role === "consultant" ? (sel.teams.length ? sel.teams.map((t) => <DeptChip key={t} team={t} large />) : <span className="text-sm text-ink-muted">No department assigned</span>) : <Pill tone="info">All departments</Pill>}</div>
