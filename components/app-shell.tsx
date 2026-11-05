@@ -47,7 +47,7 @@ export function AppShell({ signOutAction, children }: { signOutAction: () => Pro
                       href={i.href}
                       onClick={onNavigate}
                       aria-current={active ? "page" : undefined}
-                      className={`relative flex min-h-11 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors ${active ? "bg-brand-soft text-ink" : "text-ink-muted hover:bg-brand-tint hover:text-ink"}`}
+                      className={`relative flex min-h-11 items-center gap-3 rounded-lg px-3 text-[0.9375rem] font-medium transition-colors ${active ? "bg-brand-soft text-ink" : "text-ink-muted hover:bg-brand-tint hover:text-ink"}`}
                     >
                       {active && <span aria-hidden className="absolute inset-y-2 left-0 w-1 rounded-r bg-brand" />}
                       <Icon size={20} aria-hidden className={active ? "text-brand-deep" : ""} />
@@ -64,13 +64,13 @@ export function AppShell({ signOutAction, children }: { signOutAction: () => Pro
         <div className="flex items-center gap-3">
           <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-bold text-ink-on">{initials}</span>
           <div className="min-w-0">
-            <p className="truncate text-[15px] font-semibold">{user.name}</p>
+            <p className="truncate text-[0.9375rem] font-semibold">{user.name}</p>
             <p className="truncate text-sm text-ink-muted">{ROLE_LABEL[user.role]}</p>
             {user.role === "consultant" && <p className="truncate text-xs font-semibold text-brand-deep">{user.teams.map((t) => visaLabel(t)).join(" · ")} team</p>}
           </div>
         </div>
         <form action={signOutAction} className="mt-3">
-          <button type="submit" className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-line text-[15px] font-medium hover:bg-brand-tint">
+          <button type="submit" className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-line text-[0.9375rem] font-medium hover:bg-brand-tint">
             <LogOut size={18} aria-hidden /> Sign out
           </button>
         </form>
@@ -100,7 +100,7 @@ export function AppShell({ signOutAction, children }: { signOutAction: () => Pro
           <form action="/cases" role="search" className="relative min-w-0 max-w-md flex-1">
             <label htmlFor="global-search" className="sr-only">Search clients or case references</label>
             <Search aria-hidden size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
-            <input id="global-search" name="q" type="search" placeholder="Search clients or case numbers" className="h-10 w-full rounded-lg border border-line bg-brand-tint pl-10 pr-3 text-[15px] placeholder:text-ink-muted focus:border-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/30" />
+            <input id="global-search" name="q" type="search" placeholder="Search clients or case numbers" className="h-10 w-full rounded-lg border border-line bg-brand-tint pl-10 pr-3 text-[0.9375rem] placeholder:text-ink-muted focus:border-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/30" />
           </form>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 lg:inline">Demo mode · changes are not saved</span>

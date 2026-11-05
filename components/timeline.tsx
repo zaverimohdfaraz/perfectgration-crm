@@ -7,7 +7,7 @@ export function Timeline({ items, empty = "Nothing recorded yet." }: { items: { 
           <span aria-hidden className="absolute -left-[33px] top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-brand ring-1 ring-brand/40" />
           <p className="font-medium text-ink">{i.title}</p>
           <p className="mt-0.5 text-sm text-ink-muted">{i.meta}</p>
-          {i.body && <p className="mt-1.5 text-[15px] text-ink">{i.body}</p>}
+          {i.body && <p className="mt-1.5 text-[0.9375rem] text-ink">{i.body}</p>}
         </li>
       ))}
     </ol>

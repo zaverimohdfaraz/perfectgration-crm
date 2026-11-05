@@ -19,7 +19,8 @@ export function Pill({ tone = "neutral", children }: { tone?: Tone; children: Re
 
 export function StageBadge({ stage }: { stage: StageId }) {
   const label = STAGES.find((s) => s.id === stage)?.label ?? stage;
-  return <Pill tone="info">{stageNumber(stage)}/{STAGES.length} · {label}</Pill>;
+  const n = stageNumber(stage);
+  return <Pill tone="info">{n === 0 ? "Intake" : `Step ${n}`} · {label}</Pill>;
 }
 
 const DAYS = { ontrack: { tone: "neutral", label: "On track" }, followup: { tone: "warning", label: "Follow up" }, urgent: { tone: "danger", label: "Urgent" } } as const;

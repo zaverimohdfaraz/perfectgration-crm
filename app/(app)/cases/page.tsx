@@ -14,7 +14,7 @@ import { daysBetween, deadlineState } from "@/lib/dates";
 import { btn, field, td, th } from "@/lib/styles";
 
 type SortKey = "client" | "stage" | "days" | "deadline";
-type SP = { q?: string; stage?: string; visa?: string; status?: string; consultant?: string; attention?: string; source?: string };
+type SP = { q?: string; stage?: string; visa?: string; status?: string; consultant?: string; attention?: string; source?: string; waiting?: string };
 
 export default function CasesPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = use(searchParams);
@@ -26,6 +26,7 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
   const [consultant, setConsultant] = useState(sp.consultant ?? "");
   const [source, setSource] = useState(sp.source ?? "");
   const [attention, setAttention] = useState(sp.attention === "urgent");
+  const [waiting, setWaiting] = useState(sp.waiting === "1");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "deadline", dir: 1 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -41,11 +42,12 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
       if (status && c.status !== status) return false;
       if (consultant && c.consultantId !== consultant) return false;
       if (source && c.leadSource !== source) return false;
+      if (waiting && !c.route) return false;
       if (attention && !(c.status === "active" && (daysBetween(c.stageSince) > 21 || deadlineState(c.deadline) === "overdue"))) return false;
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d.visible, d.clients, q, stage, visa, status, consultant, source, attention]);
+  }, [d.visible, d.clients, q, stage, visa, status, consultant, source, attention, waiting]);
 
   const sorted = useMemo(() => {
     const val = (c: (typeof filtered)[number]): string | number => {
@@ -61,9 +63,9 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const rows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const active = [q && `“${q}”`, stage && STAGES.find((s) => s.id === stage)?.label, visa && visaLabel(visa as never), status && STATUS_LABEL[status as CaseStatus], consultant && userById(consultant)?.name, source, attention && "Urgent only"].filter(Boolean) as string[];
+  const active = [q && `“${q}”`, stage && STAGES.find((s) => s.id === stage)?.label, visa && visaLabel(visa as never), status && STATUS_LABEL[status as CaseStatus], consultant && userById(consultant)?.name, source, attention && "Urgent only", waiting && "Waiting to be accepted"].filter(Boolean) as string[];
 
-  const clear = () => { setQ(""); setStage(""); setVisa(""); setStatus(""); setConsultant(""); setSource(""); setAttention(false); setPage(1); };
+  const clear = () => { setQ(""); setStage(""); setVisa(""); setStatus(""); setConsultant(""); setSource(""); setAttention(false); setWaiting(false); setPage(1); };
   const on = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(1); };
   const toggleSort = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === 1 ? -1 : 1 } : { key, dir: 1 }));
   const SortBtn = ({ k, children }: { k: SortKey; children: string }) => (
@@ -73,18 +75,19 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
   );
   const ariaSort = (k: SortKey) => (sort.key === k ? (sort.dir === 1 ? "ascending" : "descending") : "none");
   const staff = d.users.filter((u) => u.role === "consultant");
+  const waitingCount = d.visible.filter((c) => c.route && c.status === "active").length;
 
   return (
     <div>
       <PageHeader eyebrow="Operations" title="Cases" description={`${sorted.length} ${sorted.length === 1 ? "case" : "cases"} match your view.`}
-        actions={canAddCases(d.user) ? <Button onClick={() => setCreating(true)}><Plus size={18} aria-hidden /> New case</Button> : undefined} />
+        actions={canAddCases(d.user) ? <Button onClick={() => setCreating(true)}><Plus size={18} aria-hidden /> New lead</Button> : undefined} />
 
       <form role="search" onSubmit={(e) => e.preventDefault()} className="mb-4 grid gap-3 rounded-xl border border-line bg-white p-4 md:grid-cols-3 xl:grid-cols-6">
         <div className="md:col-span-3 xl:col-span-2">
           <label htmlFor="f-q" className="mb-1 block text-sm font-semibold">Search</label>
-          <input id="f-q" className={field} value={q} onChange={(e) => on(setQ)(e.target.value)} placeholder="Client, case number, visa or consultant" />
+          <input id="f-q" className={field} value={q} onChange={(e) => on(setQ)(e.target.value)} placeholder="Client, case number, visa or person" />
         </div>
-        <div><label htmlFor="f-stage" className="mb-1 block text-sm font-semibold">Stage</label><select id="f-stage" className={field} value={stage} onChange={(e) => on(setStage)(e.target.value)}><option value="">All stages</option>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
+        <div><label htmlFor="f-stage" className="mb-1 block text-sm font-semibold">Step</label><select id="f-stage" className={field} value={stage} onChange={(e) => on(setStage)(e.target.value)}><option value="">All steps</option>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
         <div><label htmlFor="f-visa" className="mb-1 block text-sm font-semibold">Visa type</label><select id="f-visa" className={field} value={visa} onChange={(e) => on(setVisa)(e.target.value)}><option value="">All visa types</option>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></div>
         <div><label htmlFor="f-status" className="mb-1 block text-sm font-semibold">Status</label><select id="f-status" className={field} value={status} onChange={(e) => on(setStatus)(e.target.value)}><option value="">All statuses</option>{(Object.keys(STATUS_LABEL) as CaseStatus[]).filter((s) => d.user.role === "admin" || (s !== "approved" && s !== "refused")).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}</select></div>
         {d.user.role !== "consultant" ? (
@@ -93,6 +96,12 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
           <div><label htmlFor="f-src" className="mb-1 block text-sm font-semibold">Lead source</label><select id="f-src" className={field} value={source} onChange={(e) => on(setSource)(e.target.value)}><option value="">All sources</option>{LEAD_SOURCES.map((s) => <option key={s}>{s}</option>)}</select></div>
         )}
       </form>
+
+      {waitingCount > 0 && !waiting && (
+        <button type="button" onClick={() => { setWaiting(true); setPage(1); }} className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-brand/40 bg-brand-soft px-4 py-3 text-left text-[0.9375rem] font-semibold hover:bg-brand-tint">
+          <span>{waitingCount} {waitingCount === 1 ? "case is" : "cases are"} waiting to be accepted</span><span className="text-brand-deep">Show them</span>
+        </button>
+      )}
 
       {active.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Active filters">
@@ -109,13 +118,13 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
         ) : (
           <>
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[960px] text-[15px]">
+              <table className="w-full min-w-[960px] text-[0.9375rem]">
                 <caption className="sr-only">Cases</caption>
                 <thead className="border-b border-line bg-brand-tint">
                   <tr>
                     <th scope="col" className={th} aria-sort={ariaSort("client")}><SortBtn k="client">Client</SortBtn></th>
                     <th scope="col" className={th}>Visa</th>
-                    <th scope="col" className={th} aria-sort={ariaSort("stage")}><SortBtn k="stage">Stage</SortBtn></th>
+                    <th scope="col" className={th} aria-sort={ariaSort("stage")}><SortBtn k="stage">Step</SortBtn></th>
                     <th scope="col" className={th}>Responsible</th>
                     <th scope="col" className={th}>Status</th>
                     <th scope="col" className={th} aria-sort={ariaSort("days")}><SortBtn k="days">Time in stage</SortBtn></th>
@@ -131,7 +140,7 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
                         <td className={td}><Link href={`/cases/${c.id}`} className="font-semibold hover:text-brand-deep hover:underline">{clientName(c.clientId)}</Link><p className="text-sm text-ink-muted">{c.ref}</p>{c.priority !== "normal" && <span className="mt-1 inline-block"><Pill tone={c.priority === "urgent" ? "danger" : "warning"}>{PRIORITY_LABEL[c.priority]} priority</Pill></span>}</td>
                         <td className={td}><VisaBadge visa={c.visa} /></td>
                         <td className={td}><StageBadge stage={c.stage} /></td>
-                        <td className={td}><p>{d.users.find((u) => u.id === c.consultantId)?.name ?? "Not assigned"}</p><p className="text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}</p></td>
+                        <td className={td}><p>{c.route ? <Pill tone="warning">Waiting to be accepted</Pill> : (d.users.find((u) => u.id === c.consultantId)?.name ?? "Not assigned")}</p><p className="text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}</p></td>
                         <td className={td}><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></td>
                         <td className={td}><DaysBadge days={daysBetween(c.stageSince)} /></td>
                         <td className={td}><DeadlineBadge iso={c.deadline} /></td>
@@ -150,7 +159,8 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
                   <li key={c.id}>
                     <Link href={`/cases/${c.id}`} className="block space-y-2.5 p-4 hover:bg-brand-tint/50">
                       <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{clientName(c.clientId)}</p><p className="text-sm text-ink-muted">{c.ref} · {visaLabel(c.visa)}</p></div><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></div>
-                      <div className="flex flex-wrap gap-2"><StageBadge stage={c.stage} /><DaysBadge days={daysBetween(c.stageSince)} /></div>
+                      <div className="flex flex-wrap gap-2"><StageBadge stage={c.stage} /><DaysBadge days={daysBetween(c.stageSince)} />{c.route && <Pill tone="warning">Waiting to be accepted</Pill>}</div>
+                      <p className="text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}{!c.route && c.consultantId ? ` · ${d.users.find((u) => u.id === c.consultantId)?.name}` : ""}</p>
                       <DeadlineBadge iso={c.deadline} />
                     </Link>
                   </li>

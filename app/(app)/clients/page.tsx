@@ -53,7 +53,7 @@ export default function ClientsPage() {
         ) : (
           <>
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[900px] text-[15px]">
+              <table className="w-full min-w-[900px] text-[0.9375rem]">
                 <caption className="sr-only">Clients</caption>
                 <thead className="border-b border-line bg-brand-tint"><tr>
                   <th scope="col" className={th}>Client</th><th scope="col" className={th}>Nationality</th><th scope="col" className={th}>Visa types</th><th scope="col" className={th}>Cases</th><th scope="col" className={th}>Consultant</th><th scope="col" className={th}>Last updated</th><th scope="col" className={th}>Next follow-up</th>

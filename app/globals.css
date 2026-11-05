@@ -3,10 +3,19 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    font-size: 16px;
-    line-height: 1.6;
+  /* Fluid sizing: every rem-based size (text, spacing, sidebar, buttons) shrinks as the screen gets smaller. */
+  html {
+    font-size: clamp(12.5px, 9.5px + 0.45vw, 16px);
+    -webkit-text-size-adjust: 100%;
   }
+  body {
+    font-size: 1rem;
+    line-height: 1.55;
+    overflow-wrap: break-word;
+  }
+  img, svg, video { max-width: 100%; }
+  table { font-size: inherit; }
+  main, section, article, li, td, th { min-width: 0; }
   :focus-visible {
     outline: 3px solid #009fe3;
     outline-offset: 2px;

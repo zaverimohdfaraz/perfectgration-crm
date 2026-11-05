@@ -11,7 +11,7 @@ import { btn, field, td, th } from "@/lib/styles";
 
 function ProcessMap() {
   return (
-    <Panel title="Process map" description="Four teams with a handoff between each. This is the process the CRM follows.">
+    <Panel title="Process map" description="Three working teams with a handoff between each. The admin and managers oversee all of it.">
       <div className="space-y-4">
         {PROCESS_LANES.map((lane) => (
           <div key={lane.owner} className="rounded-xl border border-line">
@@ -51,26 +51,26 @@ export default function WorkflowPage() {
       <ProcessMap />
 
       <div className="mt-6" />
-      <Panel flush title="Stages, deadlines and handlers" description="Days allowed in stage is how long a case may sit there. Moving a case into a stage sets its deadline from today, and the escalation trigger raises an alert when it is missed.">
+      <Panel flush title="Steps, deadlines and handlers" description="Days allowed in stage is how long a case may sit there. Moving a case into a stage sets its deadline from today, and the escalation trigger raises an alert when it is missed.">
         <div className="border-b border-line p-4">
           <label htmlFor="wf-visa" className="mb-1 block text-sm font-semibold">Default handlers for visa type</label>
           <div className="flex flex-wrap items-center gap-3">
             <select id="wf-visa" className={`${field} max-w-xs`} value={visa} onChange={(e) => setVisa(e.target.value as TeamId)}>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select>
             <DeptChip team={visa} />
-            {visa === "visit" && <span className="text-sm text-ink-muted">Visit visas skip the Assessment stage.</span>}
+            {visa === "visit" && <span className="text-sm text-ink-muted">Visit visas skip the Document Assessment step.</span>}
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-[15px]">
+          <table className="w-full min-w-[1100px] text-[0.9375rem]">
             <caption className="sr-only">Pipeline stages, deadlines and default handlers</caption>
             <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Stage</th><th scope="col" className={th}>Owner</th><th scope="col" className={th}>Standard deadline</th><th scope="col" className={th}>Escalation trigger</th><th scope="col" className={th}>Days allowed in stage</th><th scope="col" className={th}>Default handler</th></tr></thead>
             <tbody className="divide-y divide-line">
               {STAGES.map((s, i) => {
-                const skipped = visa === "visit" && s.id === "assessment";
+                const skipped = visa === "visit" && s.id === "docassess";
                 const key = `${visa}:${s.id}`;
                 return (
                   <tr key={s.id} className={skipped ? "bg-slate-50 text-ink-muted" : ""}>
-                    <td className={`${td} font-medium`}>{i + 1}. {stageLabel(s.id)}{skipped && <span className="ml-2 text-xs">(skipped)</span>}</td>
+                    <td className={`${td} font-medium`}>{i === 0 ? "Intake" : i}. {stageLabel(s.id)}{skipped && <span className="ml-2 text-xs">(skipped)</span>}</td>
                     <td className={td}>{OWNER_LABEL[STAGE_OWNER[s.id]]}</td>
                     <td className={`${td} text-ink-muted`}>{SLA_RULES.find((r) => r.stage === s.id)?.target}</td>
                     <td className={`${td} text-ink-muted`}>{SLA_RULES.find((r) => r.stage === s.id)?.escalation}</td>

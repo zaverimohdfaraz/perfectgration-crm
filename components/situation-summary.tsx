@@ -8,7 +8,7 @@ export function SituationSummary({ items }: { items: { label: string; value: Rea
         {items.map((i) => (
           <div key={i.label}>
             <dt className="text-sm font-medium text-ink-muted">{i.label}</dt>
-            <dd className="mt-1 text-[15px] text-ink">{i.value}</dd>
+            <dd className="mt-1 text-[0.9375rem] text-ink">{i.value}</dd>
           </div>
         ))}
       </dl>

@@ -25,7 +25,7 @@ export default function SettingsPage() {
 
       <div className="grid gap-8 lg:grid-cols-[210px_minmax(0,1fr)]">
         <nav aria-label="Settings sections" className="lg:sticky lg:top-24 lg:self-start">
-          <ul className="flex gap-1 overflow-x-auto lg:flex-col">{SECTIONS.map((x) => <li key={x.id}><a href={`#${x.id}`} className="inline-flex min-h-11 items-center whitespace-nowrap rounded-lg px-3 text-[15px] font-medium hover:bg-brand-tint">{x.label}</a></li>)}</ul>
+          <ul className="flex gap-1 overflow-x-auto lg:flex-col">{SECTIONS.map((x) => <li key={x.id}><a href={`#${x.id}`} className="inline-flex min-h-11 items-center whitespace-nowrap rounded-lg px-3 text-[0.9375rem] font-medium hover:bg-brand-tint">{x.label}</a></li>)}</ul>
         </nav>
 
         <div className="space-y-6">
@@ -60,7 +60,7 @@ export default function SettingsPage() {
           </Panel>
 
           <Panel id="email" title="Email reminders" description="Sent through EmailJS (Professional plan).">
-            <div className="flex flex-wrap items-center gap-3"><span className="text-[15px]">Status:</span><Pill tone={s.emailConnected ? "success" : "warning"}>{s.emailConnected ? "Connected" : "Not connected yet"}</Pill></div>
+            <div className="flex flex-wrap items-center gap-3"><span className="text-[0.9375rem]">Status:</span><Pill tone={s.emailConnected ? "success" : "warning"}>{s.emailConnected ? "Connected" : "Not connected yet"}</Pill></div>
             <p className="mt-3 text-sm text-ink-muted">Keys live in server environment variables and are never shown in the browser.</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" className={btn.secondary} onClick={() => { d.saveSettings({ emailConnected: true }); setS({ ...s, emailConnected: true }); d.toast(`Test email sent to ${s.email || "the company address"}. (Demo: no email was sent.)`); }}><Mail size={18} aria-hidden /> Send test email</button>

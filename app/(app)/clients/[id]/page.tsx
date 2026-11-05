@@ -54,7 +54,7 @@ export default function ClientProfilePage({ params }: { params: Promise<{ id: st
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2"><Link href={`/cases/${c.id}`} className="font-semibold hover:text-brand-deep hover:underline">{c.ref}</Link><VisaBadge visa={c.visa} /><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></div>
                         <div className="flex flex-wrap gap-2"><StageBadge stage={c.stage} /><DaysBadge days={daysBetween(c.stageSince)} /></div>
-                        <p className="text-sm text-ink-muted">Consultant: {userById(c.consultantId)?.name}</p>
+                        <p className="text-sm text-ink-muted">{c.route ? "Waiting to be accepted" : `Responsible: ${userById(c.consultantId)?.name ?? "Not assigned"}`}</p>
                       </div>
                       <DeadlineBadge iso={c.deadline} />
                     </li>
@@ -79,5 +79,5 @@ export default function ClientProfilePage({ params }: { params: Promise<{ id: st
 }
 
 function F({ label, value }: { label: string; value: string }) {
-  return <div><dt className="text-sm font-medium text-ink-muted">{label}</dt><dd className="mt-0.5 break-words text-[15px]">{value}</dd></div>;
+  return <div><dt className="text-sm font-medium text-ink-muted">{label}</dt><dd className="mt-0.5 break-words text-[0.9375rem]">{value}</dd></div>;
 }

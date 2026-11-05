@@ -1,6 +1,6 @@
-import { STAGES, stageLabel, type Case, type Client, type Task, type User } from "./demo-data";
+import { STAGES, stageLabel, type Case, type Client, type Task, type Todo, type User } from "./demo-data";
 import { daysBetween, deadlineState, deadlineText, fmtDate } from "./dates";
-import { canSeeOutcome, visibleCases } from "./permissions";
+import { canSeeOutcomeOf, visibleCases } from "./permissions";
 
 export type AlertLevel = "critical" | "high" | "medium" | "low";
 export type Alert = { id: string; caseId: string; ref: string; client: string; level: AlertLevel; title: string; detail: string };
@@ -8,16 +8,21 @@ export type Alert = { id: string; caseId: string; ref: string; client: string; l
 /** The escalation triggers from the client's process flowchart. Returns null when the case is on time. */
 export function escalationFor(c: Case): { level: AlertLevel; title: string; detail: string } | null {
   const days = daysBetween(c.stageSince);
+  if (c.route) return days >= 1 ? { level: "critical", title: `Nobody has accepted this ${c.route.to === "sales" ? "lead" : "case"}`, detail: `Waiting ${days} ${days === 1 ? "day" : "days"} since ${c.route.by} passed it` } : null;
   switch (c.stage) {
-    case "enrolled": return days > 1 ? { level: "critical", title: "No call logged after 24 hrs", detail: `Flagged red · ${days} days since enrolment` } : null;
-    case "firstcall": return days >= 3 ? { level: "critical", title: "Stuck in First Call for 3+ days", detail: `Escalate to the manager · ${days} days` } : null;
-    case "assessment": return days > 3 ? { level: "high", title: "No appointment booked after 3 days", detail: "Manager alert" } : null;
-    case "appointment": return c.appointmentAt && daysBetween(c.appointmentAt) >= 1 ? { level: "high", title: "Visit done but no deal after 24 hrs", detail: "Follow-up required" } : null;
-    case "documents": return days > 7 ? { level: "medium", title: "Incomplete documents after 7 days", detail: "Reminder to the client" } : null;
-    case "caseprep":
-      if (c.qcApprovedAt && daysBetween(c.qcApprovedAt) > 2) return { level: "critical", title: "Not submitted within 2 days of QC", detail: "Urgent flag" };
-      return days > 7 ? { level: "critical", title: "Prep not done in 7 days", detail: "Manager escalation" } : null;
-    case "outcome": return c.status === "refused" && days > 2 ? { level: "high", title: "Review appeal options (48 hrs)", detail: "Refused case needs a decision" } : null;
+    case "lead": return days > 1 ? { level: "high", title: "Lead not passed to Sales within 24 hrs", detail: `Social Media Team · ${days} days` } : null;
+    case "firstcall": return days >= 3 ? { level: "critical", title: "Stuck in First Call for 3+ days", detail: `Escalate to the manager · ${days} days` } : days > 1 ? { level: "high", title: "No call logged after 24 hrs", detail: "Flagged red" } : null;
+    case "docassess": return days > 2 ? { level: "high", title: "Document assessment overdue", detail: "Manager alert" } : null;
+    case "appointment": return c.appointmentAt && daysBetween(c.appointmentAt) >= 1 ? { level: "high", title: "Visit done but no deal after 24 hrs", detail: "Follow-up required" } : days > 3 ? { level: "high", title: "No appointment booked after 3 days", detail: "Manager alert" } : null;
+    case "deal": return days > 1 ? { level: "high", title: "Deal not finalised after 24 hrs", detail: "Follow-up required" } : null;
+    case "advance": return days > 2 ? { level: "high", title: "Fees not collected after 2 days", detail: "Manager alert" } : null;
+    case "doccollect": return days > 7 ? { level: "medium", title: "Incomplete documents after 7 days", detail: "Reminder to the client" } : null;
+    case "verify": return days > 3 ? { level: "medium", title: "Verification not done after 3 days", detail: "Reminder to the case manager" } : null;
+    case "prep": return days > 7 ? { level: "critical", title: "Prep not done in 7 days", detail: "Manager escalation" } : null;
+    case "review": return days > 2 ? { level: "critical", title: "Review pending after 2 days", detail: "Urgent flag" } : null;
+    case "submitted":
+      return c.qcApprovedAt && !c.submittedAt && daysBetween(c.qcApprovedAt) > 2 ? { level: "critical", title: "Not submitted within 2 days of approval", detail: "Urgent flag" } : null;
+    case "outcome": return c.status === "refused" && days > 2 ? { level: "high", title: "Review appeal options (48 hrs)", detail: "Denied case needs a decision" } : null;
     default: return null;
   }
 }
@@ -30,7 +35,7 @@ export function alertsFor(user: User, cases: Case[], clients: Client[]): Alert[]
   for (const c of visibleCases(user, cases)) {
     const client = nameOf(clients, c.clientId);
     const base = { caseId: c.id, ref: c.ref, client };
-    if (c.status === "refused" && canSeeOutcome(user)) {
+    if (c.status === "refused" && canSeeOutcomeOf(user, c)) {
       const e = escalationFor(c);
       if (e) out.push({ ...base, id: `${c.id}-esc`, level: e.level, title: `${e.title}: ${client}`, detail: `${e.detail} · ${c.ref}` });
     }
@@ -62,7 +67,7 @@ export function recentActivity(user: User, cases: Case[], clients: Client[], lim
       items.push({
         id: `${c.id}-h${i}`,
         at: h.at,
-        text: h.from ? `${client} moved from ${stageLabel(h.from)} to ${stageLabel(h.to)}` : `${client} was enrolled`,
+        text: h.kind === "claim" || h.kind === "assign" ? `${client}: ${h.handoff ?? "accepted"}` : h.from && h.from !== h.to ? `${client} moved from ${stageLabel(h.from)} to ${stageLabel(h.to)}` : `${client} was added as a lead`,
         actor: h.actor,
         ref: c.ref,
         caseId: c.id,
@@ -83,12 +88,17 @@ export function metricsFor(user: User, cases: Case[]) {
     overdue: active.filter((c) => deadlineState(c.deadline) === "overdue").length,
     dueWithin3: active.filter((c) => ["d1", "d3"].includes(deadlineState(c.deadline))).length,
     closed: mine.filter((c) => c.status === "approved" || c.status === "refused" || c.status === "withdrawn").length,
+    waiting: mine.filter((c) => c.status === "active" && !!c.route).length,
   };
 }
 
 export function stageCounts(user: User, cases: Case[]) {
   const mine = visibleCases(user, cases);
   return STAGES.map((s) => ({ ...s, n: mine.filter((c) => c.stage === s.id).length }));
+}
+
+export function todosFor(user: User, todos: Todo[]) {
+  return todos.filter((t) => user.role === "admin" || t.ownerId === user.id);
 }
 
 export function tasksFor(user: User, tasks: Task[]) {

@@ -20,7 +20,7 @@ export function NotificationBell() {
 
   const sendReminder = (caseId: string, client: string) => {
     const c = d.cases.find((x) => x.id === caseId);
-    const who = userById(c?.consultantId ?? "")?.name ?? "the consultant";
+    const who = userById(c?.consultantId ?? "")?.name ?? "the team";
     d.toast(`Reminder email sent to ${who} about ${client}. (Demo: no email was sent.)`);
   };
 

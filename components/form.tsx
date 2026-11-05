@@ -20,7 +20,7 @@ export function Toggle({ checked, onChange, label, description, disabled }: { ch
   return (
     <div className="flex items-start justify-between gap-4 py-3">
       <div>
-        <p className="text-[15px] font-medium text-ink">{label}</p>
+        <p className="text-[0.9375rem] font-medium text-ink">{label}</p>
         {description && <p className="text-sm text-ink-muted">{description}</p>}
       </div>
       <button

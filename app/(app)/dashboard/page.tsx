@@ -8,8 +8,9 @@ import { Timeline } from "@/components/timeline";
 import { Pill } from "@/components/status";
 import { IntakeDialog } from "@/components/dialogs-cases";
 import { useDemo } from "@/lib/store";
-import { alertsFor, metricsFor, recentActivity, stageCounts, tasksFor } from "@/lib/insights";
-import { canAddCases, visibleNotes } from "@/lib/permissions";
+import { alertsFor, metricsFor, recentActivity, stageCounts, tasksFor, todosFor } from "@/lib/insights";
+import { OWNER_LABEL, STAGE_OWNER, stageLabel } from "@/lib/demo-data";
+import { canAddCases, claimable, visibleNotes } from "@/lib/permissions";
 import { deadlineState, fmtDate } from "@/lib/dates";
 import { btn } from "@/lib/styles";
 
@@ -22,6 +23,8 @@ export default function DashboardPage() {
   const maxStage = Math.max(1, ...stages.map((s) => s.n));
   const dueTasks = tasksFor(d.user, d.tasks).filter((t) => t.progress < 100 && ["overdue", "d1", "d3"].includes(deadlineState(t.deadline)));
   const pinned = visibleNotes(d.user, d.teamNotes).filter((n) => n.pinned);
+  const queue = claimable(d.user, d.cases);
+  const myTodos = todosFor(d.user, d.todos).filter((t) => !t.done && (d.user.role !== "admin" || t.ownerId === d.user.id)).sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999")).slice(0, 5);
   const firstName = d.user.name.split(" ")[0];
 
   return (
@@ -30,7 +33,7 @@ export default function DashboardPage() {
         eyebrow="Good morning"
         title={`Welcome back, ${firstName}`}
         description="Here is your case activity and the work that needs attention today."
-        actions={canAddCases(d.user) ? (<><Button variant="secondary" onClick={() => setDialog("client")}><UserPlus size={18} aria-hidden /> Add client</Button><Button onClick={() => setDialog("case")}><Plus size={18} aria-hidden /> New case</Button></>) : undefined}
+        actions={canAddCases(d.user) ? (<><Button variant="secondary" onClick={() => setDialog("client")}><UserPlus size={18} aria-hidden /> Add client</Button><Button onClick={() => setDialog("case")}><Plus size={18} aria-hidden /> New lead</Button></>) : undefined}
       />
 
       {urgent.length > 0 ? (
@@ -80,10 +83,24 @@ export default function DashboardPage() {
             )}
           </Panel>
 
-          <Panel title="Case pipeline" description="Where your cases sit today. Select a stage to see those cases.">
+          {queue.length > 0 && (
+            <Panel title="Waiting for you to accept" description="These were passed to your team. The first person to accept gets access." flush>
+              <ul className="divide-y divide-line">
+                {queue.slice(0, 5).map((c) => (
+                  <li key={c.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0"><p className="font-semibold">{d.clients.find((x) => x.id === c.clientId)?.name}</p><p className="text-sm text-ink-muted">{c.ref} · {c.route?.kind === "visa" ? `${c.route.visa} team` : "whole team"} · passed by {c.route?.by}</p></div>
+                    <button type="button" className={`${btn.primary} shrink-0`} onClick={() => { d.claimCase(c.id); d.toast("You accepted this case. (Demo: not saved.)"); }}>Accept</button>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+
+          <Panel title="Pipeline" description="Where cases sit today, grouped by the team that owns each step.">
             <ul className="space-y-2">
-              {stages.map((s) => (
+              {stages.map((s, i) => (
                 <li key={s.id}>
+                  {(i === 0 || STAGE_OWNER[stages[i - 1].id] !== STAGE_OWNER[s.id]) && <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-ink-muted first:mt-0">{OWNER_LABEL[STAGE_OWNER[s.id]]}</p>}
                   <Link href={`/cases?stage=${s.id}`} className="group grid grid-cols-[minmax(0,10.5rem)_1fr_2.5rem] items-center gap-3 rounded-md py-1.5 hover:bg-brand-tint">
                     <span className="truncate text-sm font-medium group-hover:text-brand-deep">{s.label}</span>
                     <span aria-hidden className="h-3 overflow-hidden rounded-full bg-brand-soft"><span className="block h-full rounded-full bg-brand" style={{ width: `${(s.n / maxStage) * 100}%` }} /></span>
@@ -96,7 +113,12 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-6">
-          <Panel title="Recent activity" description="Stage changes and notes across your cases.">
+          <Panel title="My to-do list" action={<Link href="/todo" className="text-sm font-semibold text-brand-deep hover:underline">Open</Link>}>
+            {myTodos.length === 0 ? <p className="text-sm text-ink-muted">Nothing on your list.</p> : (
+              <ul className="space-y-3">{myTodos.map((t) => (<li key={t.id} className="flex items-start justify-between gap-3"><span className="min-w-0 text-[0.9375rem] font-medium">{t.title}</span><span className="shrink-0 text-sm text-ink-muted">{t.due ? fmtDate(t.due) : "No date"}</span></li>))}</ul>
+            )}
+          </Panel>
+          <Panel title="Recent activity" description="Steps, handoffs and notes across your cases.">
             <Timeline items={recentActivity(d.user, d.cases, d.clients, 6).map((a) => ({ id: a.id, title: a.text, meta: `${a.actor} · ${a.ref} · ${fmtDate(a.at)}` }))} empty="No activity yet." />
           </Panel>
           <Panel title="Pinned team notes">

@@ -9,8 +9,8 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
     <header className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div className="min-w-0">
         {eyebrow && <p className="text-sm font-semibold text-brand-deep">{eyebrow}</p>}
-        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-ink md:text-[28px] md:leading-tight">{title}</h1>
-        {description && <p className="mt-1.5 max-w-2xl text-[15px] text-ink-muted">{description}</p>}
+        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-ink md:text-[1.75rem] md:leading-tight">{title}</h1>
+        {description && <p className="mt-1.5 max-w-2xl text-[0.9375rem] text-ink-muted">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </header>
@@ -101,7 +101,7 @@ export function Tabs({ tabs, value, onChange }: { tabs: { id: string; label: str
             aria-selected={on}
             aria-controls={`panel-${t.id}`}
             onClick={() => onChange(t.id)}
-            className={`-mb-px inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-4 text-[15px] font-semibold ${on ? "border-brand text-ink" : "border-transparent text-ink-muted hover:text-ink"}`}
+            className={`-mb-px inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-4 text-[0.9375rem] font-semibold ${on ? "border-brand text-ink" : "border-transparent text-ink-muted hover:text-ink"}`}
           >
             {t.label}
             {t.count !== undefined && <span className={`rounded-full px-2 text-xs ${on ? "bg-brand-soft text-brand-deep" : "bg-slate-100 text-ink-muted"}`}>{t.count}</span>}

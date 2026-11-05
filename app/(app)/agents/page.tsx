@@ -56,7 +56,7 @@ export default function AgentsPage() {
               <div className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2">
                 <div>
                   <p className="text-sm font-medium text-ink-muted">Linked cases ({cs.length})</p>
-                  {cs.length === 0 ? <p className="mt-1 text-[15px]">No referred cases yet.</p> : <ul className="mt-1 space-y-1 text-[15px]">{cs.slice(0, 4).map((c) => <li key={c.id}>{d.clients.find((x) => x.id === c.clientId)?.name} · {c.ref} · {visaLabel(c.visa)}</li>)}{cs.length > 4 && <li className="text-ink-muted">and {cs.length - 4} more</li>}</ul>}
+                  {cs.length === 0 ? <p className="mt-1 text-[0.9375rem]">No referred cases yet.</p> : <ul className="mt-1 space-y-1 text-[0.9375rem]">{cs.slice(0, 4).map((c) => <li key={c.id}>{d.clients.find((x) => x.id === c.clientId)?.name} · {c.ref} · {visaLabel(c.visa)}</li>)}{cs.length > 4 && <li className="text-ink-muted">and {cs.length - 4} more</li>}</ul>}
                 </div>
                 <div><p className="text-sm font-medium text-ink-muted">Commission recorded</p><p className="mt-1 text-2xl font-bold tabular-nums">{comm ? fmtSar(comm) : "None yet"}</p></div>
               </div>

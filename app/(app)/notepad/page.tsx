@@ -81,7 +81,7 @@ export default function NotepadPage() {
                     <span className="text-sm font-medium text-ink-muted">For:</span>
                     {everyone ? <Pill tone="neutral">Everyone</Pill> : (<>{n.departments.map((t) => <DeptChip key={t} team={t} />)}{n.people.map((id) => <Pill key={id} tone="neutral">{nameOf(id)}</Pill>)}</>)}
                   </div>
-                  <p className="mt-3 max-w-prose whitespace-pre-line break-words text-[15px] leading-relaxed">{n.content}</p>
+                  <p className="mt-3 max-w-prose whitespace-pre-line break-words text-[0.9375rem] leading-relaxed">{n.content}</p>
                   <p className="mt-auto pt-4 text-sm text-ink-muted">{n.author} · Updated {fmtDate(n.updatedAt)}</p>
                   {canEdit && (
                     <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">

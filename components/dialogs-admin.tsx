@@ -103,8 +103,8 @@ export function TeamNoteDialog({ note, onClose }: { note?: TeamNote; onClose: ()
         <fieldset className="rounded-xl border border-line p-4">
           <legend className="px-1 text-sm font-semibold">Who is this note for?</legend>
           <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
-            <label className="flex min-h-11 items-center gap-2 text-[15px]"><input type="radio" name="aud" checked={audience === "everyone"} onChange={() => setAudience("everyone")} className="h-4 w-4 accent-[#009FE3]" /> Everyone on the team</label>
-            <label className="flex min-h-11 items-center gap-2 text-[15px]"><input type="radio" name="aud" checked={audience === "specific"} onChange={() => setAudience("specific")} className="h-4 w-4 accent-[#009FE3]" /> Specific departments or people</label>
+            <label className="flex min-h-11 items-center gap-2 text-[0.9375rem]"><input type="radio" name="aud" checked={audience === "everyone"} onChange={() => setAudience("everyone")} className="h-4 w-4 accent-[#009FE3]" /> Everyone on the team</label>
+            <label className="flex min-h-11 items-center gap-2 text-[0.9375rem]"><input type="radio" name="aud" checked={audience === "specific"} onChange={() => setAudience("specific")} className="h-4 w-4 accent-[#009FE3]" /> Specific departments or people</label>
           </div>
 
           {audience === "specific" && (
@@ -115,7 +115,7 @@ export function TeamNoteDialog({ note, onClose }: { note?: TeamNote; onClose: ()
                   {VISA_TYPES.map((v) => {
                     const on = depts.includes(v.id);
                     return (
-                      <label key={v.id} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-[15px] ${on ? "border-brand bg-brand-soft font-semibold" : "border-line"}`}>
+                      <label key={v.id} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-[0.9375rem] ${on ? "border-brand bg-brand-soft font-semibold" : "border-line"}`}>
                         <input type="checkbox" className="h-4 w-4 accent-[#009FE3]" checked={on} onChange={() => setDepts(on ? depts.filter((t) => t !== v.id) : [...depts, v.id])} /> {v.label}
                       </label>
                     );
@@ -134,7 +134,7 @@ export function TeamNoteDialog({ note, onClose }: { note?: TeamNote; onClose: ()
                       <li key={u.id}>
                         <label className="flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2 hover:bg-brand-tint">
                           <input type="checkbox" className="h-4 w-4 shrink-0 accent-[#009FE3]" checked={on} onChange={() => setPeople(on ? people.filter((x) => x !== u.id) : [...people, u.id])} />
-                          <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-medium">{u.name}</span><span className="block truncate text-sm text-ink-muted">{ROLE_LABEL[u.role]}{u.role === "consultant" && u.teams.length ? ` · ${u.teams.map((t) => VISA_TYPES.find((v) => v.id === t)?.label).join(", ")}` : ""}</span></span>
+                          <span className="min-w-0 flex-1"><span className="block truncate text-[0.9375rem] font-medium">{u.name}</span><span className="block truncate text-sm text-ink-muted">{ROLE_LABEL[u.role]}{u.role === "consultant" && u.teams.length ? ` · ${u.teams.map((t) => VISA_TYPES.find((v) => v.id === t)?.label).join(", ")}` : ""}</span></span>
                         </label>
                       </li>
                     );
@@ -168,7 +168,7 @@ function TeamPicker({ teams, onChange }: { teams: TeamId[]; onChange: (t: TeamId
         {VISA_TYPES.map((v) => {
           const on = teams.includes(v.id);
           return (
-            <label key={v.id} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-[15px] ${on ? "border-brand bg-brand-soft font-semibold" : "border-line"}`}>
+            <label key={v.id} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-[0.9375rem] ${on ? "border-brand bg-brand-soft font-semibold" : "border-line"}`}>
               <input type="checkbox" className="h-4 w-4 accent-[#009FE3]" checked={on} onChange={() => onChange(on ? teams.filter((t) => t !== v.id) : [...teams, v.id])} /> {v.label}
             </label>
           );
@@ -204,7 +204,7 @@ export function AddUserDialog({ onClose }: { onClose: () => void }) {
   if (created) {
     return (
       <Modal title="Account created" onClose={onClose}>
-        <p className="text-[15px]"><strong>{created.name}</strong> can now sign in with this email. Share the temporary password privately. They will be asked to change it at first sign-in.</p>
+        <p className="text-[0.9375rem]"><strong>{created.name}</strong> can now sign in with this email. Share the temporary password privately. They will be asked to change it at first sign-in.</p>
         <dl className="mt-4 space-y-3 rounded-lg bg-brand-tint p-4">
           <div><dt className="text-sm text-ink-muted">Email</dt><dd className="font-semibold">{created.email}</dd></div>
           <div><dt className="text-sm text-ink-muted">Temporary password</dt><dd className="font-mono text-lg font-bold">{created.pw}</dd></div>
@@ -258,7 +258,7 @@ export function AccessDialog({ user, onClose }: { user: User; onClose: () => voi
           <Toggle checked={active} onChange={setActive} disabled={self} label="Account is active" description="Inactive accounts cannot sign in." />
         </div>
         <ul className="space-y-1 rounded-lg bg-brand-tint p-4 text-sm text-ink-muted">
-          <li>{role === "admin" ? "Can see everything, including commission and outcomes." : role === "manager" ? "Can see all cases and reports, approve the QC review and log visa outcomes. Cannot see commission." : `Can see ${teams.length ? teams.map((t) => VISA_TYPES.find((v) => v.id === t)?.label).join(", ") : "no"} cases only.`}</li>
+          <li>{role === "admin" ? "Can see everything, including commission and outcomes." : role === "manager" ? "Can see all cases and reports, approve the review and log visa outcomes. Cannot see commission." : `Can see ${teams.length ? teams.map((t) => VISA_TYPES.find((v) => v.id === t)?.label).join(", ") : "no"} cases only.`}</li>
           <li>Permissions are enforced on the server, not only in the screens.</li>
         </ul>
         <div>
@@ -338,7 +338,7 @@ export function TemplateDialog({ t, onClose }: { t: Template; onClose: () => voi
 export function ReportPreview({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: ReactNode }) {
   return (
     <Modal title="Report preview" description="Use Print, then choose Save as PDF." onClose={onClose} size="xl">
-      <div className="print-area rounded-lg border border-line p-6 text-[14px]">
+      <div className="print-area rounded-lg border border-line p-6 text-[0.875rem]">
         <div className="mb-4 flex items-end justify-between border-b-2 border-brand pb-3">
           <img src="/brand/logo.png" alt="Perfectgration" className="h-10 w-auto" width={681} height={151} />
           <div className="text-right"><p className="text-lg font-bold">{title}</p><p className="text-ink-muted">{subtitle}</p></div>

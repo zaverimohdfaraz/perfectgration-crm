@@ -115,3 +115,14 @@ lib                     demo data, state (store.tsx), permissions, dates
 ## Hosting notes
 
 Intended target: Hostinger managed Node.js hosting (`npm run build`, then `npm start`). Confirm the plan runs a long-lived Node process, and whether uploaded files persist and are backed up. Database: MongoDB Atlas. Check which regions are available near Saudi Arabia, and what the Saudi Personal Data Protection Law means for where personal data is stored. Get legal advice.
+
+## v8: three teams, handoffs and to-do list
+
+- **Teams:** Social Media, Sales, Case Manager. Each only sees its own part of the process. Admin and Manager see everything.
+- **Social Media** creates the lead (visa type, budget, destination) and passes it to Sales. Default is the whole Sales Team: every member sees it and the first to accept gets it. Optional: one visa team, or one specific person.
+- **Sales (steps 1 to 5):** First Call, Document Assessment, Office Appointment, Deal Finalised, Advance / Fees Collection. Then pass to the Case Manager the same way. After the case is accepted the sender no longer sees it.
+- **Case Manager (steps 6 to 11):** Document Collection, Verify Documents, Case Prep, Review, Submit (time recorded, then "what happened" updates), Result (Approved, Denied, Returned, Withdrawn).
+- **Admin** can assign a waiting case to anyone, and can change the sales member or case manager at any time (Edit or reassign).
+- **Accountability:** case page tab shows who held each step and how long; Reports shows teams, stuck steps, workload and unaccepted cases.
+- **To-Do List:** every employee manages their own tasks; admin can see, add, edit and delete for everyone.
+- **Fluid sizing:** the root font size scales with the screen, so text, spacing and layout shrink together on smaller screens.

@@ -69,7 +69,7 @@ export function ConfirmDialog({
 }: { title: string; body: string; confirmLabel: string; danger?: boolean; onConfirm: () => void; onClose: () => void }) {
   return (
     <Modal title={title} onClose={onClose}>
-      <p className="text-[15px] text-ink">{body}</p>
+      <p className="text-[0.9375rem] text-ink">{body}</p>
       <ModalActions>
         <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
         <button type="button" className={danger ? btn.danger : btn.primary} onClick={() => { onConfirm(); onClose(); }}>{confirmLabel}</button>

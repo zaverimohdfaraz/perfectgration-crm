@@ -8,6 +8,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", roles: ALL, group: "Workspace" },
   { href: "/cases", label: "Cases", roles: ALL, group: "Workspace" },
   { href: "/clients", label: "Clients", roles: ALL, group: "Workspace" },
+  { href: "/todo", label: "To-Do List", roles: ALL, group: "Workspace" },
   { href: "/partner-tasks", label: "Partner Tasks", roles: ALL, group: "Workspace" },
   { href: "/notepad", label: "Team Notepad", roles: ALL, group: "Workspace" },
   { href: "/reports", label: "Reports", roles: ["admin", "manager"], group: "Management" },

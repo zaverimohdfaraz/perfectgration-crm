@@ -9,11 +9,12 @@ import { StageStepper } from "@/components/stage-stepper";
 import { SituationSummary } from "@/components/situation-summary";
 import { Timeline } from "@/components/timeline";
 import { ConfirmDialog } from "@/components/modal";
-import { AddDocumentDialog, AssessmentDialog, EditCaseDialog, EndCaseDialog, MoveStageDialog, ReturnQcDialog } from "@/components/dialogs-cases";
+import { AddDocumentDialog, AssessmentDialog, EditCaseDialog, EndCaseDialog, MoveStageDialog, ReturnQcDialog, SubmissionUpdateDialog, AssignDialog } from "@/components/dialogs-cases";
 import { ReportPreview } from "@/components/dialogs-admin";
 import { useDemo, nextStageFor } from "@/lib/store";
-import { OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, WORK_TEAM_LABEL, agentById, stageLabel, userById, visaLabel, type Doc } from "@/lib/demo-data";
-import { canApproveQc, canEditCase, canLogOutcome, canMoveStage, canReactivate, canSeeCase, canSeeCommission, canSeeOutcome, canViewReports, displayStatus } from "@/lib/permissions";
+import { OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, SUBMISSION_LABEL, agentById, stageLabel, visaLabel, type Doc } from "@/lib/demo-data";
+import { stagePeriods } from "@/lib/accountability";
+import { canApproveQc, canClaim, canEditCase, canLogOutcome, canMoveStage, canReactivate, canReassign, canSeeCase, canSeeCommission, canSeeOutcomeOf, canViewReports, displayStatus } from "@/lib/permissions";
 import { daysBetween, fmtDate, fmtDateTime, fmtSar } from "@/lib/dates";
 import { area, btn, td, th } from "@/lib/styles";
 
@@ -21,7 +22,7 @@ const DOC_TONE = { verified: "success", received: "info", pending: "warning" } a
 const DOC_LABEL = { verified: "Verified", received: "Received", pending: "Waiting for client" } as const;
 const PRIO_TONE = { normal: "neutral", high: "warning", urgent: "danger" } as const;
 
-type Dlg = null | "move" | "end" | "edit" | "assess" | "reactivate" | "pdf" | "doc" | "qc";
+type Dlg = null | "move" | "end" | "edit" | "assess" | "reactivate" | "pdf" | "doc" | "qc" | "submission" | "assign";
 
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -38,25 +39,29 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
   const client = d.clients.find((x) => x.id === c.clientId);
   const person = (pid: string) => d.users.find((u) => u.id === pid);
-  const consultant = person(c.consultantId);
+  const consultant = c.route ? undefined : person(c.consultantId);
   const agent = agentById(c.agentId) ?? d.agents.find((a) => a.id === c.agentId);
   const st = displayStatus(d.user, c);
   const days = daysBetween(c.stageSince);
   const editable = canEditCase(d.user, c);
   const next = nextStageFor(c);
   const ended = c.status === "on_hold" || c.status === "returned" || c.status === "withdrawn" || c.status === "refused";
-  const completed = STAGES.slice(0, STAGES.findIndex((s) => s.id === c.stage)).filter((s) => !(c.visa === "visit" && s.id === "assessment")).map((s) => s.label);
+  const completed = STAGES.slice(0, STAGES.findIndex((s) => s.id === c.stage)).filter((s) => !(c.visa === "visit" && s.id === "docassess")).map((s) => s.label);
   const docs = d.docs.filter((x) => x.caseId === c.id);
   const assessment = d.assessments[c.id];
-  const showReason = !(c.status === "refused" && !canSeeOutcome(d.user));
+  const showReason = !((c.status === "refused" || c.status === "approved") && !canSeeOutcomeOf(d.user, c));
   const ownerLabel = OWNER_LABEL[STAGE_OWNER[c.stage]];
   const qcBlocked = next === "submitted" && !c.qcApprovedAt;
+  const handoff = next && next !== "outcome" && STAGE_OWNER[next] !== STAGE_OWNER[c.stage];
+  const claimable = canClaim(d.user, c);
+  const periods = stagePeriods(c, d.sla);
   const counts = { total: docs.length, waiting: docs.filter((x) => x.status === "pending").length, received: docs.filter((x) => x.status === "received").length, verified: docs.filter((x) => x.status === "verified").length };
 
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "history", label: "Stage history", count: c.history.length },
-    { id: "eligibility", label: "Eligibility" },
+    { id: "eligibility", label: "Document assessment" },
+    { id: "accountability", label: "Accountability" },
     { id: "documents", label: "Documents", count: docs.length },
     { id: "notes", label: "Notes", count: c.notes.length },
   ];
@@ -69,18 +74,19 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
       <PageHeader
         title={client?.name ?? "Case"}
-        description={`${c.ref} · ${visaLabel(c.visa)} visa · ${c.destination} · Responsible: ${consultant?.name ?? "not assigned"} (${ownerLabel})`}
+        description={`${c.ref} · ${visaLabel(c.visa)} visa · ${c.destination} · Responsible: ${c.route ? `waiting for someone in the ${OWNER_LABEL[c.route.to]} to accept` : `${consultant?.name ?? "not assigned"} (${ownerLabel})`}`}
         actions={
           <>
-            {c.status === "active" && next && (
+            {claimable && c.status === "active" && <Button onClick={() => { d.claimCase(c.id); d.toast("You accepted this case. It is now yours. (Demo: not saved.)"); }}>Accept this {c.route?.to === "sales" ? "lead" : "case"}</Button>}
+            {c.status === "active" && next && !c.route && (
               next === "outcome"
-                ? (canLogOutcome(d.user)
-                    ? <Button onClick={() => setDlg("move")}>Log outcome</Button>
-                    : <span className="inline-flex min-h-11 items-center rounded-lg bg-brand-tint px-4 text-sm font-medium text-ink-muted">Awaiting outcome: an Admin or Manager logs the result</span>)
-                : canMoveStage(d.user, c) && <Button disabled={qcBlocked} onClick={() => setDlg("move")}>Move to {stageLabel(next)}</Button>
+                ? (canLogOutcome(d.user, c)
+                    ? <Button onClick={() => setDlg("move")}>Record result</Button>
+                    : <span className="inline-flex min-h-11 items-center rounded-lg bg-brand-tint px-4 text-sm font-medium text-ink-muted">Awaiting result: the case manager records it</span>)
+                : canMoveStage(d.user, c) && <Button disabled={qcBlocked} onClick={() => setDlg("move")}>{handoff ? `Pass to ${OWNER_LABEL[STAGE_OWNER[next]]}` : `Move to ${stageLabel(next)}`}</Button>
             )}
             {editable && c.status === "active" && <Button variant="secondary" onClick={() => setTab("notes")}><StickyNote size={18} aria-hidden /> Add note</Button>}
-            {editable && <Button variant="secondary" onClick={() => setDlg("edit")}><Pencil size={18} aria-hidden /> Edit details</Button>}
+            {(editable || canReassign(d.user)) && <Button variant="secondary" onClick={() => setDlg("edit")}><Pencil size={18} aria-hidden /> {canReassign(d.user) ? "Edit or reassign" : "Edit details"}</Button>}
             {editable && c.status === "active" && <Button variant="secondary" onClick={() => setDlg("end")}>End or pause</Button>}
             {canReactivate(d.user) && ended && <Button onClick={() => setDlg("reactivate")}>Reactivate case</Button>}
             {canViewReports(d.user) && <Button variant="secondary" onClick={() => setDlg("pdf")}><FileDown size={18} aria-hidden /> PDF</Button>}
@@ -101,23 +107,31 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       )}
 
       {qcBlocked && c.status === "active" && (
-        <p role="status" className="mb-5 rounded-lg bg-amber-50 px-4 py-2 text-sm font-medium text-amber-950">Waiting for the manager's QC sign-off before this case can be submitted.</p>
+        <p role="status" className="mb-5 rounded-lg bg-amber-50 px-4 py-2 text-sm font-medium text-amber-950">Waiting for the review sign-off before this case can be submitted.</p>
+      )}
+
+      {c.route && c.status === "active" && (
+        <div role="status" className="mb-5 rounded-xl border border-brand/40 bg-brand-soft p-5">
+          <p className="font-semibold">Waiting to be accepted by the {OWNER_LABEL[c.route.to]}</p>
+          <p className="mt-1 text-sm">{c.route.kind === "visa" ? `Only the ${visaLabel(c.route.visa ?? c.visa)} team can see this.` : "Everyone on the team can see this."} Passed by {c.route.by} on {fmtDateTime(c.route.at)}. The first person to accept it gets access.</p>
+          {canReassign(d.user) && <div className="mt-3"><Button variant="secondary" onClick={() => setDlg("assign")}>Assign to someone</Button></div>}
+        </div>
       )}
 
       <div className="mb-5 rounded-xl border border-line bg-white p-5"><StageStepper current={c.stage} visa={c.visa} /></div>
 
-      {c.stage === "caseprep" && c.status === "active" && (
+      {c.stage === "review" && c.status === "active" && (
         <div className="mb-5">
-          <Panel title="Manager review (QC)" description="A manager signs off the file before it is submitted. Submit on the same day as approval.">
+          <Panel title="Review" description="A reviewer signs off the file before it is submitted. Submit on the same day as approval.">
             {c.qcApprovedAt ? (
-              <p className="flex items-start gap-2 text-[15px]"><CheckCircle2 size={20} aria-hidden className="mt-0.5 shrink-0 text-green-700" /> <span><strong>QC approved</strong> by {c.qcBy ?? "a manager"} on {fmtDateTime(c.qcApprovedAt)}. Submit within 2 days.</span></p>
+              <p className="flex items-start gap-2 text-[0.9375rem]"><CheckCircle2 size={20} aria-hidden className="mt-0.5 shrink-0 text-green-700" /> <span><strong>Review approved</strong> by {c.qcBy ?? "a manager"} on {fmtDateTime(c.qcApprovedAt)}. Submit within 2 days.</span></p>
             ) : (
               <>
-                <p className="text-[15px]"><Pill tone="warning">Awaiting QC sign-off</Pill></p>
+                <p className="text-[0.9375rem]"><Pill tone="warning">Awaiting QC sign-off</Pill></p>
                 {c.qcNote && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950"><strong>Returned for changes:</strong> {c.qcNote}</p>}
                 {canApproveQc(d.user) ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Button onClick={() => { d.approveQc(c.id); d.toast("QC approved. The case manager can now submit. (Demo: not saved.)"); }}>Approve QC</Button>
+                    <Button onClick={() => { d.approveQc(c.id); d.toast("Review approved. The case manager can now submit. (Demo: not saved.)"); }}>Approve review</Button>
                     <Button variant="secondary" onClick={() => setDlg("qc")}>Return for changes</Button>
                   </div>
                 ) : <p className="mt-3 text-sm text-ink-muted">A manager or administrator reviews and signs off the file.</p>}
@@ -127,8 +141,17 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {c.stage === "submitted" && c.status === "active" && (
-        <p role="status" className="mb-5 rounded-lg bg-brand-tint px-4 py-3 text-[15px] text-ink"><strong>Awaiting outcome.</strong> Track the application on the embassy or VFS portal. An Admin or Manager logs the decision on the day it is known.</p>
+      {(c.stage === "submitted" || c.stage === "outcome") && c.submittedAt && (
+        <div className="mb-5">
+          <Panel title="Submission" description={`Submitted on ${fmtDateTime(c.submittedAt)}. Record what happens next, then the result.`}
+            action={editable && c.stage === "submitted" && c.status === "active" ? <Button variant="secondary" onClick={() => setDlg("submission")}><Plus size={18} aria-hidden /> Record what happened</Button> : undefined}>
+            <ul className="space-y-3">
+              {[...(c.submissionLog ?? [])].reverse().map((e, i) => (
+                <li key={i} className="rounded-lg border-l-4 border-brand bg-brand-tint p-3 text-[0.9375rem]"><p className="font-semibold">{SUBMISSION_LABEL[e.status]}</p>{e.note && <p className="text-ink-muted">{e.note}</p>}<p className="text-sm text-ink-muted">{e.by} · {fmtDateTime(e.at)}</p></li>
+              ))}
+            </ul>
+          </Panel>
+        </div>
       )}
 
       <div className="mb-6">
@@ -159,7 +182,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                   <Item label="Lead source" value={c.leadSource} />
                   <Item label="Referral agent" value={agent?.name ?? "Direct enquiry"} />
                   <Item label="Nationality" value={client?.nationality ?? "—"} />
-                  {canSeeOutcome(d.user) && <Item label="Outcome" value={c.status === "approved" ? "Approved" : c.status === "refused" ? "Refused" : "Not yet decided"} />}
+                  {canSeeOutcomeOf(d.user, c) && <Item label="Result" value={c.status === "approved" ? "Approved" : c.status === "refused" ? "Denied" : "Not yet decided"} />}
                 </dl>
               </Panel>
               {(c.appointmentAt || c.agreementSigned || c.docsVerified) && (
@@ -169,7 +192,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                     {c.agreementSigned && <Item label="Agreement" value="Signed" />}
                     {c.feesCollectedSar ? <Item label="Fees collected" value={fmtSar(c.feesCollectedSar)} /> : null}
                     {c.docsVerified && <Item label="Documents verified" value="Yes (completeness and translations)" />}
-                    {c.qcApprovedAt && <Item label="QC approved" value={`${c.qcBy ?? "Manager"} · ${fmtDate(c.qcApprovedAt)}`} />}
+                    {c.submittedAt && <Item label="Submitted" value={fmtDateTime(c.submittedAt)} />}
+                    {c.qcApprovedAt && <Item label="Review approved" value={`${c.qcBy ?? "Manager"} · ${fmtDate(c.qcApprovedAt)}`} />}
                   </dl>
                 </Panel>
               )}
@@ -177,17 +201,17 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             <div className="space-y-6">
               <Panel title="People on this case" description="Responsibility moves between teams at each handoff.">
                 <ul className="divide-y divide-line">
-                  {([["social", "Lead captured by", c.leadById], ["sales", "Sales consultant", c.salesId], ["case", "Case manager", c.caseManagerId]] as const).map(([owner, label, pid]) => {
+                  {([["social", "Lead captured by", c.leadById], ["sales", "Sales team member", c.salesId], ["case", "Case manager", c.caseManagerId]] as const).map(([owner, label, pid]) => {
                     const p = person(pid);
                     const current = STAGE_OWNER[c.stage] === owner;
+                    const waiting = !p && current && !!c.route;
                     return (
                       <li key={owner} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                        <div><p className="text-sm text-ink-muted">{label}</p><p className="font-semibold">{p?.name ?? "Not assigned yet"}</p></div>
-                        <div className="flex flex-wrap items-center gap-2"><span className="text-sm text-ink-muted">{OWNER_LABEL[owner]}</span>{current && <Pill tone="info">Responsible now</Pill>}</div>
+                        <div><p className="text-sm text-ink-muted">{label}</p><p className="font-semibold">{p?.name ?? (waiting ? "Waiting to be accepted" : "Not assigned yet")}</p></div>
+                        <div className="flex flex-wrap items-center gap-2"><span className="text-sm text-ink-muted">{OWNER_LABEL[owner]}</span>{current && <Pill tone={waiting ? "warning" : "info"}>{waiting ? "Unclaimed" : "Responsible now"}</Pill>}</div>
                       </li>
                     );
                   })}
-                  {STAGE_OWNER[c.stage] === "leadership" && <li className="py-3"><Pill tone="info">Responsible now: Admin / Manager</Pill></li>}
                 </ul>
               </Panel>
               <Panel title="Deadlines">
@@ -209,25 +233,48 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         )}
 
         {tab === "history" && (
-          <Panel title="Stage history" description="Every stage change and handoff, with who made it and when.">
+          <Panel title="Step history" description="Every step change, handoff, acceptance and reassignment, with who did it and when.">
             <Timeline items={[...c.history].reverse().map((h, i) => ({
-              id: `h${i}`, title: h.from ? `${stageLabel(h.from)} → ${stageLabel(h.to)}` : `Enrolled at ${stageLabel(h.to)}`, meta: `${h.actor} · ${fmtDateTime(h.at)}`, body: [h.handoff, h.note].filter(Boolean).join(" · ") || undefined,
+              id: `h${i}`, title: h.kind === "claim" ? "Accepted" : h.kind === "assign" ? "Assigned by admin" : h.from && h.from !== h.to ? `${stageLabel(h.from)} → ${stageLabel(h.to)}` : `Lead created at ${stageLabel(h.to)}`, meta: `${h.actor} · ${fmtDateTime(h.at)}`, body: [h.handoff, h.note].filter(Boolean).join(" · ") || undefined,
             }))} />
           </Panel>
         )}
 
         {tab === "eligibility" && (
-          <Panel title="Eligibility assessment" action={editable && c.visa !== "visit" ? <Button variant="secondary" onClick={() => setDlg("assess")}>{assessment ? "Update assessment" : "Start assessment"}</Button> : undefined}>
-            {c.visa === "visit" && <p className="mb-4 text-sm text-ink-muted">Assessment is skipped for Visit visas in the configured workflow.</p>}
+          <Panel title="Document assessment" action={editable && c.visa !== "visit" ? <Button variant="secondary" onClick={() => setDlg("assess")}>{assessment ? "Update assessment" : "Start assessment"}</Button> : undefined}>
+            {c.visa === "visit" && <p className="mb-4 text-sm text-ink-muted">Document assessment is skipped for Visit visas in the configured workflow.</p>}
             {assessment ? (
               <div className="space-y-5">
                 <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-950">Illustrative demo rules only. Real eligibility rules have not been supplied, so this is not an official decision.</p>
-                {assessment.indicative && <p className="text-[15px]">Indicative result: <Pill tone={assessment.indicative === "Strong" ? "success" : assessment.indicative === "Moderate" ? "info" : "warning"}>{assessment.indicative}</Pill></p>}
+                {assessment.indicative && <p className="text-[0.9375rem]">Indicative result: <Pill tone={assessment.indicative === "Strong" ? "success" : assessment.indicative === "Moderate" ? "info" : "warning"}>{assessment.indicative}</Pill></p>}
                 <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">{assessment.inputs.map((i) => <Item key={i.label} label={i.label} value={i.value} />)}</dl>
-                <div><h3 className="font-semibold">Missing information</h3>{assessment.missing.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-[15px]">{assessment.missing.map((m) => <li key={m}>{m}</li>)}</ul> : <p className="mt-1 text-sm text-ink-muted">Nothing missing.</p>}</div>
+                <div><h3 className="font-semibold">Missing information</h3>{assessment.missing.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-[0.9375rem]">{assessment.missing.map((m) => <li key={m}>{m}</li>)}</ul> : <p className="mt-1 text-sm text-ink-muted">Nothing missing.</p>}</div>
                 <p className="text-sm text-ink-muted">Rule version {assessment.ruleVersion} · Assessed by {assessment.assessedBy} on {fmtDate(assessment.assessedAt)}</p>
               </div>
             ) : c.visa !== "visit" ? <EmptyState title="No assessment yet" body="Record education, experience and language details to build the eligibility summary." /> : null}
+          </Panel>
+        )}
+
+        {tab === "accountability" && (
+          <Panel title="Accountability" description="Who held each step, how long it took, and whether it ran past the days allowed. This shows where the case got stuck." flush>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-[0.9375rem]">
+                <caption className="sr-only">Time spent at each step</caption>
+                <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Step</th><th scope="col" className={th}>Team</th><th scope="col" className={th}>Held by</th><th scope="col" className={th}>Started</th><th scope="col" className={th}>Time taken</th><th scope="col" className={th}>Result</th></tr></thead>
+                <tbody className="divide-y divide-line">
+                  {periods.map((p, i) => (
+                    <tr key={i} className={p.late ? "bg-red-50/60" : ""}>
+                      <td className={`${td} font-medium`}>{stageLabel(p.stage)}</td>
+                      <td className={td}>{OWNER_LABEL[p.owner]}</td>
+                      <td className={td}>{p.ownerId ? person(p.ownerId)?.name : <span className="text-ink-muted">Unclaimed</span>}{p.waitedDays !== undefined && <p className="text-xs text-ink-muted">Waited {p.waitedDays} {p.waitedDays === 1 ? "day" : "days"} to be accepted</p>}</td>
+                      <td className={td}>{fmtDate(p.enteredAt)}</td>
+                      <td className={`${td} tabular-nums`}>{p.days} {p.days === 1 ? "day" : "days"} <span className="text-ink-muted">of {p.allowed}</span></td>
+                      <td className={td}>{p.current ? <Pill tone={p.late ? "danger" : "info"}>{p.late ? "Stuck here now" : "In progress"}</Pill> : <Pill tone={p.late ? "danger" : "success"}>{p.late ? `Late by ${p.days - p.allowed}` : "On time"}</Pill>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Panel>
         )}
 
@@ -240,7 +287,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                   <EmptyState title="No documents added yet" body="There is no fixed list yet. Use Add document to name each document the client needs to provide, and attach the file when it arrives." />
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[640px] text-[15px]">
+                    <table className="w-full min-w-[640px] text-[0.9375rem]">
                       <caption className="sr-only">Documents</caption>
                       <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Document</th><th scope="col" className={th}>Added</th><th scope="col" className={th}>Status</th><th scope="col" className={th}><span className="sr-only">Actions</span></th></tr></thead>
                       <tbody className="divide-y divide-line">{docs.map((x) => <DocRow key={x.id} doc={x} editable={editable} />)}</tbody>
@@ -267,6 +314,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       {dlg === "edit" && <EditCaseDialog c={c} onClose={() => setDlg(null)} />}
       {dlg === "assess" && <AssessmentDialog c={c} onClose={() => setDlg(null)} />}
       {dlg === "doc" && <AddDocumentDialog caseId={c.id} onClose={() => setDlg(null)} />}
+      {dlg === "assign" && <AssignDialog c={c} onClose={() => setDlg(null)} />}
+      {dlg === "submission" && <SubmissionUpdateDialog c={c} onClose={() => setDlg(null)} />}
       {dlg === "qc" && <ReturnQcDialog c={c} onClose={() => setDlg(null)} />}
       {dlg === "reactivate" && <ConfirmDialog title="Reactivate this case?" body="The case returns to the pipeline at the stage where it stopped. The history is kept, and the stage timer restarts." confirmLabel="Reactivate" onConfirm={() => { d.reactivate(c.id); d.toast("Case reactivated. (Demo: not saved.)"); }} onClose={() => setDlg(null)} />}
       {dlg === "pdf" && (
@@ -287,7 +336,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 }
 
 function Item({ label, value }: { label: string; value: ReactNode }) {
-  return <div><dt className="text-sm font-medium text-ink-muted">{label}</dt><dd className="mt-1 text-[15px] text-ink">{value}</dd></div>;
+  return <div><dt className="text-sm font-medium text-ink-muted">{label}</dt><dd className="mt-1 text-[0.9375rem] text-ink">{value}</dd></div>;
 }
 
 function DocRow({ doc, editable }: { doc: Doc; editable: boolean }) {
@@ -340,7 +389,7 @@ function NotesTab({ caseId, canAdd }: { caseId: string; canAdd: boolean }) {
       <div className="xl:col-span-2">
         <Panel title="Case notes" description="Internal notes. Never shown to the client.">
           {c.notes.length === 0 ? <p className="text-sm text-ink-muted">No notes yet.</p> : (
-            <ul className="space-y-4">{[...c.notes].reverse().map((n, i) => (<li key={i} className="rounded-lg border-l-4 border-brand bg-brand-tint p-4"><p className="text-[15px]">{n.text}</p><p className="mt-1 text-sm text-ink-muted">{n.author} · {fmtDateTime(n.at)}</p></li>))}</ul>
+            <ul className="space-y-4">{[...c.notes].reverse().map((n, i) => (<li key={i} className="rounded-lg border-l-4 border-brand bg-brand-tint p-4"><p className="text-[0.9375rem]">{n.text}</p><p className="mt-1 text-sm text-ink-muted">{n.author} · {fmtDateTime(n.at)}</p></li>))}</ul>
           )}
         </Panel>
       </div>

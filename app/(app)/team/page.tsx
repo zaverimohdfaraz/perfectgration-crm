@@ -20,13 +20,15 @@ function access(u: User) {
   const social = u.workTeam === "social";
   return [
     { group: "Cases", items: [
-      { label: admin || manager ? "Sees cases from every department" : social ? "Sees the leads they captured" : "Sees cases from their own departments", on: true },
+      { label: admin || manager ? "Sees cases from every team and department" : social ? "Sees the leads they created, until someone in Sales accepts them" : "Sees only cases passed to their team and visa department, and the ones they accepted", on: true },
       { label: "Capture leads and add new cases", on: admin || !!u.canAdd || social, note: social ? "Part of the Social Media Team role" : "Can be granted to a person" },
       { label: "Works on cases at the stages their team owns", on: !admin && !manager, note: u.workTeam ? OWNER_LABEL[u.workTeam] + " stages only" : undefined },
     ]},
     { group: "Review and outcome", items: [
-      { label: "Approve the QC review before submission", on: admin || manager },
-      { label: "Log the visa outcome", on: admin || manager },
+      { label: "Approve the review before submission", on: admin || manager },
+      { label: "Record the result", on: admin || manager || u.workTeam === "case", note: u.workTeam === "case" ? "Only on cases they accepted" : undefined },
+      { label: "Accept a lead or case passed to their team", on: !admin && !manager },
+      { label: "Change the assigned sales member or case manager", on: admin, note: "Administrators only" },
       { label: "See commission", on: admin, note: "Administrators only" },
       { label: "Reports and exports", on: admin || manager },
     ]},
@@ -34,6 +36,7 @@ function access(u: User) {
       { label: "Manage people, teams and permissions", on: admin },
       { label: "Agents, workflow setup and settings", on: admin },
       { label: "Reactivate ended cases", on: admin },
+      { label: "See and manage everyone's to-do list", on: admin, note: "Everyone else manages only their own" },
     ]},
   ];
 }
@@ -126,7 +129,7 @@ export default function TeamPage() {
             ) : (
               <>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[900px] text-[15px]">
+                  <table className="w-full min-w-[900px] text-[0.9375rem]">
                     <caption className="sr-only">Team members and their departments</caption>
                     <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Person</th><th scope="col" className={th}>Team</th><th scope="col" className={th}>Department</th><th scope="col" className={th}>Role</th><th scope="col" className={th}>Active cases</th><th scope="col" className={th}>Status</th><th scope="col" className={th}><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody className="divide-y divide-line">
@@ -175,7 +178,7 @@ export default function TeamPage() {
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-ink-muted">{g.group}</h3>
                   <ul className="mt-1 divide-y divide-line">
                     {g.items.map((i) => (
-                      <li key={i.label} className="flex items-start justify-between gap-3 py-2.5"><div><p className="text-[15px]">{i.label}</p>{i.note && <p className="text-xs text-ink-muted">{i.note}</p>}</div><Pill tone={i.on ? "success" : "neutral"}>{i.on ? "Yes" : "No"}</Pill></li>
+                      <li key={i.label} className="flex items-start justify-between gap-3 py-2.5"><div><p className="text-[0.9375rem]">{i.label}</p>{i.note && <p className="text-xs text-ink-muted">{i.note}</p>}</div><Pill tone={i.on ? "success" : "neutral"}>{i.on ? "Yes" : "No"}</Pill></li>
                     ))}
                   </ul>
                 </div>
