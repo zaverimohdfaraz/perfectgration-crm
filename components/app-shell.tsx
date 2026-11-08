@@ -4,34 +4,36 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  BarChart3, Briefcase, Handshake, LayoutDashboard, ListChecks, LogOut, Menu, NotebookPen, Search, Settings, UserCog, Users, Workflow, X,
+  BarChart3, Briefcase, CalendarClock, FolderOpen, Handshake, LayoutDashboard, Megaphone, Phone, ListChecks, LogOut, Menu, NotebookPen, Search, Settings, UserCog, Users, Workflow, X,
 } from "@/components/icons";
 import { Logo } from "./logo";
 import { NotificationBell } from "./notification-bell";
-import { NAV_ITEMS } from "@/lib/nav";
+import { homeFor, navFor } from "@/lib/nav";
+import { visibleMessages } from "@/lib/permissions";
 import { ROLE_LABEL, visaLabel } from "@/lib/demo-data";
 import { useDemo } from "@/lib/store";
 
 const ICONS: Record<string, typeof LayoutDashboard> = {
-  "/dashboard": LayoutDashboard, "/cases": Briefcase, "/clients": Users, "/partner-tasks": ListChecks, "/notepad": NotebookPen,
-  "/reports": BarChart3, "/team": UserCog, "/agents": Handshake, "/workflow": Workflow, "/settings": Settings,
+  "/dashboard": LayoutDashboard, "/social": Megaphone, "/sales": Phone, "/case-manager": FolderOpen, "/todo": ListChecks, "/cases": Briefcase, "/clients": Users, "/partner-tasks": ListChecks, "/notepad": NotebookPen,
+  "/reports": BarChart3, "/team": UserCog, "/sign-ins": CalendarClock, "/agents": Handshake, "/workflow": Workflow, "/settings": Settings,
 };
 
 export function AppShell({ signOutAction, children }: { signOutAction: () => Promise<void>; children: ReactNode }) {
-  const { user } = useDemo();
+  const { user, messages, mode } = useDemo();
+  const unread = visibleMessages(user, messages).filter((m) => m.fromId !== user.id && !m.readBy.includes(user.id)).length;
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [pathname]);
 
-  const items = NAV_ITEMS.filter((i) => i.roles.includes(user.role));
-  const groups = ["Workspace", "Management", "Administration"].map((g) => ({ g, items: items.filter((i) => i.group === g) })).filter((x) => x.items.length > 0);
+  const items = navFor(user);
+  const groups = ["Teams", "Workspace", "Management", "Administration"].map((g) => ({ g, items: items.filter((i) => i.group === g) })).filter((x) => x.items.length > 0);
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const initials = user.name.split(" ").map((p) => p[0]).slice(0, 2).join("");
 
   const sidebar = (onNavigate?: () => void) => (
     <>
       <div className="flex h-16 shrink-0 items-center border-b border-line px-5">
-        <Link href="/dashboard" onClick={onNavigate} aria-label="Perfectgration dashboard"><Logo className="h-8" /></Link>
+        <Link href={homeFor(user)} onClick={onNavigate} aria-label="Perfectgration home"><Logo className="h-8" /></Link>
       </div>
       <nav aria-label="Main" className="flex-1 space-y-5 overflow-y-auto p-3">
         {groups.map(({ g, items: gi }) => (
@@ -52,6 +54,7 @@ export function AppShell({ signOutAction, children }: { signOutAction: () => Pro
                       {active && <span aria-hidden className="absolute inset-y-2 left-0 w-1 rounded-r bg-brand" />}
                       <Icon size={20} aria-hidden className={active ? "text-brand-deep" : ""} />
                       {i.label}
+                      {i.href === "/notepad" && unread > 0 && <span className="ml-auto rounded-full bg-brand px-2 text-xs font-bold text-ink-on" aria-label={`${unread} unread`}>{unread}</span>}
                     </Link>
                   </li>
                 );
@@ -69,6 +72,7 @@ export function AppShell({ signOutAction, children }: { signOutAction: () => Pro
             {user.role === "consultant" && <p className="truncate text-xs font-semibold text-brand-deep">{user.teams.map((t) => visaLabel(t)).join(" · ")} team</p>}
           </div>
         </div>
+        {mode === "api" && <Link href="/change-password" onClick={onNavigate} className="mt-3 flex min-h-10 w-full items-center justify-center rounded-lg text-[0.9375rem] font-medium text-brand-deep hover:bg-brand-tint">Change password</Link>}
         <form action={signOutAction} className="mt-3">
           <button type="submit" className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-line text-[0.9375rem] font-medium hover:bg-brand-tint">
             <LogOut size={18} aria-hidden /> Sign out
@@ -103,7 +107,7 @@ export function AppShell({ signOutAction, children }: { signOutAction: () => Pro
             <input id="global-search" name="q" type="search" placeholder="Search clients or case numbers" className="h-10 w-full rounded-lg border border-line bg-brand-tint pl-10 pr-3 text-[0.9375rem] placeholder:text-ink-muted focus:border-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/30" />
           </form>
           <div className="ml-auto flex items-center gap-3">
-            <span className="hidden rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 lg:inline">Demo mode · changes are not saved</span>
+            {mode === "demo" && <span className="hidden rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 lg:inline">Demo mode · changes are not saved</span>}
             <NotificationBell />
           </div>
         </header>

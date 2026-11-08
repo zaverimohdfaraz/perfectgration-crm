@@ -7,7 +7,7 @@ import { PageHeader, Panel, EmptyState, Avatar, Button } from "@/components/ui";
 import { DeadlineBadge, DaysBadge, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
 import { EditClientDialog, IntakeDialog } from "@/components/dialogs-cases";
 import { useDemo } from "@/lib/store";
-import { userById } from "@/lib/demo-data";
+import { userById, waitingLabel } from "@/lib/demo-data";
 import { canAddCases, canEditCase, displayStatus } from "@/lib/permissions";
 import { daysBetween, fmtDate } from "@/lib/dates";
 import { btn } from "@/lib/styles";
@@ -54,7 +54,7 @@ export default function ClientProfilePage({ params }: { params: Promise<{ id: st
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2"><Link href={`/cases/${c.id}`} className="font-semibold hover:text-brand-deep hover:underline">{c.ref}</Link><VisaBadge visa={c.visa} /><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></div>
                         <div className="flex flex-wrap gap-2"><StageBadge stage={c.stage} /><DaysBadge days={daysBetween(c.stageSince)} /></div>
-                        <p className="text-sm text-ink-muted">{c.route ? "Waiting to be accepted" : `Responsible: ${userById(c.consultantId)?.name ?? "Not assigned"}`}</p>
+                        <p className="text-sm text-ink-muted">{c.route ? waitingLabel(c) : `Responsible: ${userById(c.consultantId)?.name ?? "Not assigned"}`}</p>
                       </div>
                       <DeadlineBadge iso={c.deadline} />
                     </li>

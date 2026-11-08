@@ -8,7 +8,7 @@ import { Field } from "./form";
 import { btn, field, area } from "@/lib/styles";
 import { useDemo, nextStageFor, type OutcomeResult, type PassTarget } from "@/lib/store";
 import { RoutePicker } from "./route-picker";
-import { DESTINATIONS, LEAD_SOURCES, OWNER_LABEL, PRIORITY_LABEL, STAGE_OWNER, SUBMISSION_LABEL, VISA_TYPES, stageLabel, userById, type Case, type CaseStatus, type Priority, type StageId, type SubmissionStatus, type TeamId } from "@/lib/demo-data";
+import { ISSUE_LABEL, type IssueKind, DESTINATIONS, LEAD_SOURCES, OWNER_LABEL, PRIORITY_LABEL, STAGE_OWNER, SUBMISSION_LABEL, VISA_TYPES, stageLabel, userById, type Case, type CaseStatus, type Priority, type StageId, type SubmissionStatus, type TeamId } from "@/lib/demo-data";
 import { canLogOutcome } from "@/lib/permissions";
 import { fmtDate, isoFromToday } from "@/lib/dates";
 import { NATIONALITIES, digits, fromDateInput, toDateInput } from "@/lib/forms";
@@ -30,6 +30,7 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
   const [destination, setDestination] = useState(DESTINATIONS[0]);
   const [budget, setBudget] = useState("");
   const [source, setSource] = useState("Instagram");
+  const [campaign, setCampaign] = useState("");
   const [priority, setPriority] = useState<Priority>("normal");
   const [passNow, setPassNow] = useState(true);
   const [target, setTarget] = useState<PassTarget>({ kind: "team" });
@@ -60,7 +61,7 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
 
     const client = useNewClient ? d.addClient({ name, phone, email, nationality }) : d.clients.find((c) => c.id === clientId)!;
     if (needCase) {
-      const created = d.addCase({ clientId: client.id, visa, leadSource: source, pass: passNow ? route : undefined, priority, destination, budget: budget ? Number(budget) : undefined, agentId: agentId || undefined, note: note.trim() || undefined });
+      const created = d.addCase({ clientId: client.id, visa, leadSource: source, campaign: campaign.trim() || undefined, pass: passNow ? route : undefined, priority, destination, budget: budget ? Number(budget) : undefined, agentId: agentId || undefined, note: note.trim() || undefined });
       d.toast(passNow ? `${client.name} is saved as ${created.ref} and passed to the Sales Team. (Demo: not saved.)` : `${client.name} is saved as lead ${created.ref}. Pass it to Sales when it is ready. (Demo: not saved.)`);
       onClose();
       router.push(`/cases/${created.id}`);
@@ -124,6 +125,7 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
             <Field label="Destination" htmlFor="ic-dest"><select id="ic-dest" className={field} value={destination} onChange={(e) => setDestination(e.target.value)}>{DESTINATIONS.map((x) => <option key={x}>{x}</option>)}</select></Field>
             <Field label="Budget (SAR)" htmlFor="ic-budget" hint="Optional"><input id="ic-budget" type="number" min="0" className={field} value={budget} onChange={(e) => setBudget(e.target.value)} /></Field>
             <Field label="Lead source" htmlFor="ic-src"><select id="ic-src" className={field} value={source} onChange={(e) => setSource(e.target.value)}>{LEAD_SOURCES.map((x) => <option key={x}>{x}</option>)}</select></Field>
+            <Field label="Ad campaign" htmlFor="ic-camp" hint="Optional. Type it exactly as in Meta or Google Ads so the lead is matched to the ad results."><input id="ic-camp" list="ic-camp-list" className={field} value={campaign} maxLength={120} onChange={(e) => setCampaign(e.target.value)} placeholder="Use the exact ad campaign name" /><datalist id="ic-camp-list">{[...new Set(d.cases.map((c) => c.campaign).filter(Boolean))].slice(0, 50).map((x) => <option key={x} value={x} />)}</datalist></Field>
             <Field label="Priority" htmlFor="ic-prio"><select id="ic-prio" className={field} value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}</select></Field>
             <Field label="Referral agent" htmlFor="ic-agent" hint="Optional"><select id="ic-agent" className={field} value={agentId} onChange={(e) => setAgentId(e.target.value)}><option value="">Direct enquiry</option>{d.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
             <div className="sm:col-span-2"><Field label="First note" htmlFor="ic-note" hint="Optional. Internal only."><textarea id="ic-note" className={area} value={note} onChange={(e) => setNote(e.target.value)} /></Field></div>
@@ -184,8 +186,7 @@ export function PassDialog({ c, to, onClose }: { c: Case; to: StageId; onClose: 
     if (route.kind === "person" && !route.userId) e.route = "Choose a person.";
     setErrors(e);
     if (Object.keys(e).length) return;
-    if (fromSales) d.updateCase(c.id, { feesCollectedSar: Number(fees), agreementSigned: true });
-    d.passCase(c.id, route, note.trim() || undefined);
+    if (!d.passCase(c.id, route, note.trim() || undefined, fromSales ? Number(fees) : undefined)) return;
     d.toast(`Passed to the ${OWNER_LABEL[team]}. You will not see this case after someone accepts it. (Demo: not saved.)`);
     onClose();
   };
@@ -383,20 +384,22 @@ export function AddDocumentDialog({ caseId, onClose }: { caseId: string; onClose
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [translation, setTranslation] = useState(false);
-  const [fileName, setFileName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fileName = file?.name ?? "";
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const pick = (file: File | undefined) => {
     if (!file) return;
     if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) { setErrors({ file: "Only PDF, JPG or PNG files are accepted." }); return; }
     if (file.size > 10 * 1024 * 1024) { setErrors({ file: "That file is larger than 10 MB." }); return; }
-    setErrors({}); setFileName(file.name);
+    setErrors({}); setFile(file);
     if (!name.trim()) setName(file.name.replace(/\.[^.]+$/, ""));
   };
 
   return (
     <Modal title="Add document" description="Give the document a name. Attach the file now, or leave it empty to mark it as waiting for the client." onClose={onClose}>
-      <form onSubmit={(ev) => { ev.preventDefault(); if (!name.trim()) { setErrors({ name: "Enter a name for this document." }); return; } d.addDoc(caseId, { name, note, needsTranslation: translation, fileName: fileName || undefined }); d.toast(fileName ? "Document added with its file. (Demo: the file itself is not stored.)" : "Document added as waiting for the client. (Demo: not saved.)"); onClose(); }} noValidate className="space-y-4">
+      <form onSubmit={(ev) => { ev.preventDefault(); if (!name.trim()) { setErrors({ name: "Enter a name for this document." }); return; } setBusy(true); void d.addDoc(caseId, { name, note, needsTranslation: translation, file: file ?? undefined }).then((ok) => { setBusy(false); if (!ok) return; d.toast(file ? "Document added with its file. (Demo: the file itself is not stored.)" : "Document added as waiting for the client. (Demo: not saved.)"); onClose(); }); }} noValidate className="space-y-4">
         <Field label="Document name" htmlFor="ad-name" required error={errors.name}><input id="ad-name" className={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="For example, Passport copy" /></Field>
         <Field label="File" htmlFor="ad-file" hint="Optional. PDF, JPG or PNG, up to 10 MB." error={errors.file}>
           <input id="ad-file" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => pick(e.target.files?.[0])} className="block w-full text-[0.9375rem] file:mr-3 file:min-h-11 file:cursor-pointer file:rounded-lg file:border-0 file:bg-brand file:px-4 file:font-semibold file:text-ink-on hover:file:bg-brand-hover" />
@@ -406,7 +409,7 @@ export function AddDocumentDialog({ caseId, onClose }: { caseId: string; onClose
         <label className="flex min-h-11 items-center gap-3 text-[0.9375rem] font-medium"><input type="checkbox" checked={translation} onChange={(e) => setTranslation(e.target.checked)} className="h-5 w-5 accent-[#009FE3]" /> This document needs a translation</label>
         <ModalActions>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
-          <button type="submit" className={btn.primary}>Add document</button>
+          <button type="submit" className={btn.primary} disabled={busy}>{busy ? "Uploading…" : "Add document"}</button>
         </ModalActions>
       </form>
     </Modal>
@@ -414,22 +417,26 @@ export function AddDocumentDialog({ caseId, onClose }: { caseId: string; onClose
 }
 
 /* ─── End a case early ──────────────────────────────────── */
-const END_TYPES: { id: Exclude<CaseStatus, "active" | "approved">; label: string; help: string }[] = [
-  { id: "on_hold", label: "On hold", help: "Paused while waiting for the client or the authority." },
-  { id: "returned", label: "Returned", help: "Documents or the application were sent back by the authority." },
-  { id: "withdrawn", label: "Withdrawn", help: "The client decided to cancel the application." },
-  { id: "refused", label: "Denied", help: "The visa was denied before the result step." },
+type EndChoice = { id: string; status: Exclude<CaseStatus, "active" | "approved">; kind?: IssueKind; label: string; help: string };
+const END_TYPES: EndChoice[] = [
+  { id: "hold_client", status: "on_hold", kind: "client", label: "On hold by client", help: "The client asked to pause (travel, money, personal reasons, not ready yet)." },
+  { id: "on_hold", status: "on_hold", label: "On hold (waiting on someone else)", help: "Paused by us while waiting for a third party, the authority or something inside the team." },
+  { id: "returned", status: "returned", label: "Returned", help: "Documents or the application were sent back by the authority." },
+  { id: "withdrawn", status: "withdrawn", label: "Withdrawn", help: "The client decided to cancel the application." },
+  { id: "refused", status: "refused", label: "Denied", help: "The visa was denied before the result step." },
 ];
 
 export function EndCaseDialog({ c, onClose }: { c: Case; onClose: () => void }) {
   const d = useDemo();
-  const [type, setType] = useState<(typeof END_TYPES)[number]["id"]>("on_hold");
+  const [type, setType] = useState("hold_client");
+  const [waitingOn, setWaitingOn] = useState<IssueKind>("third_party");
+  const choice = END_TYPES.find((t) => t.id === type)!;
   const [reason, setReason] = useState("");
   const [err, setErr] = useState("");
 
   return (
     <Modal title="End or pause this case" description="A reason is required. Only an administrator can reactivate it." onClose={onClose}>
-      <form onSubmit={(ev) => { ev.preventDefault(); if (!reason.trim()) { setErr("Please give a reason."); return; } d.endCase(c.id, type, reason.trim()); d.toast("Case updated. (Demo: not saved.)"); onClose(); }} noValidate className="space-y-4">
+      <form onSubmit={(ev) => { ev.preventDefault(); if (!reason.trim()) { setErr("Please give a reason."); return; } if (!d.endCase(c.id, choice.status, reason.trim(), choice.kind ?? (choice.id === "on_hold" ? waitingOn : undefined))) return; d.toast("Case updated. (Demo: not saved.)"); onClose(); }} noValidate className="space-y-4">
         <fieldset className="space-y-2">
           <legend className="mb-1 text-sm font-semibold">What happened?</legend>
           {END_TYPES.map((t) => (
@@ -439,6 +446,9 @@ export function EndCaseDialog({ c, onClose }: { c: Case; onClose: () => void }) 
             </label>
           ))}
         </fieldset>
+        {type === "on_hold" && (
+          <Field label="Waiting on" htmlFor="end-on"><select id="end-on" className={field} value={waitingOn} onChange={(e) => setWaitingOn(e.target.value as IssueKind)}>{(["third_party", "authority", "internal", "other"] as IssueKind[]).map((k) => <option key={k} value={k}>{ISSUE_LABEL[k]}</option>)}</select></Field>
+        )}
         <Field label="Reason" htmlFor="end-reason" required error={err}><textarea id="end-reason" className={area} value={reason} onChange={(e) => { setReason(e.target.value); setErr(""); }} /></Field>
         <ModalActions>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
@@ -472,8 +482,9 @@ export function EditCaseDialog({ c, onClose }: { c: Case; onClose: () => void })
   );
 
   const save = () => {
-    d.updateCase(c.id, { deadline: deadline ? fromDateInput(deadline) : null, nextAction, waitingFor, priority, leadSource: source, agentId: agentId || undefined });
+    d.updateCase(c.id, { deadline: deadline ? fromDateInput(deadline) : null, nextAction, waitingFor, priority, leadSource: source });
     if (admin) {
+      if ((agentId || null) !== (c.agentId ?? null)) d.linkAgent(c.id, agentId || null);
       if (leadId && leadId !== c.leadById) d.assignCase(c.id, "social", leadId);
       if (salesId && salesId !== c.salesId) d.assignCase(c.id, "sales", salesId);
       if (managerId && managerId !== c.caseManagerId) d.assignCase(c.id, "case", managerId);

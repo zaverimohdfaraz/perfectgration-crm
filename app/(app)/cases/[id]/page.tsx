@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { use, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { ProblemsPanel, UploadLinksPanel } from "@/components/case-extras";
+import { openIssues } from "@/lib/case-logic";
 import { CheckCircle2, FileDown, Pencil, Plus, StickyNote } from "@/components/icons";
 import { PageHeader, Panel, Tabs, EmptyState, Button } from "@/components/ui";
 import { DaysBadge, DeadlineBadge, Pill, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
@@ -12,7 +15,7 @@ import { ConfirmDialog } from "@/components/modal";
 import { AddDocumentDialog, AssessmentDialog, EditCaseDialog, EndCaseDialog, MoveStageDialog, ReturnQcDialog, SubmissionUpdateDialog, AssignDialog } from "@/components/dialogs-cases";
 import { ReportPreview } from "@/components/dialogs-admin";
 import { useDemo, nextStageFor } from "@/lib/store";
-import { OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, SUBMISSION_LABEL, agentById, stageLabel, visaLabel, type Doc } from "@/lib/demo-data";
+import { ISSUE_LABEL, OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, SUBMISSION_LABEL, agentById, stageLabel, visaLabel, type Doc } from "@/lib/demo-data";
 import { stagePeriods } from "@/lib/accountability";
 import { canApproveQc, canClaim, canEditCase, canLogOutcome, canMoveStage, canReactivate, canReassign, canSeeCase, canSeeCommission, canSeeOutcomeOf, canViewReports, displayStatus } from "@/lib/permissions";
 import { daysBetween, fmtDate, fmtDateTime, fmtSar } from "@/lib/dates";
@@ -28,7 +31,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const d = useDemo();
   const c = d.cases.find((x) => x.id === id);
-  const [tab, setTab] = useState("overview");
+  const sp = useSearchParams();
+  const [tab, setTab] = useState(sp.get("tab") ?? "overview");
   const [dlg, setDlg] = useState<Dlg>(null);
 
   if (!c || !canSeeCase(d.user, c)) {
@@ -63,8 +67,10 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     { id: "eligibility", label: "Document assessment" },
     { id: "accountability", label: "Accountability" },
     { id: "documents", label: "Documents", count: docs.length },
+    { id: "problems", label: "Problems and holds", count: openIssues(c).length },
     { id: "notes", label: "Notes", count: c.notes.length },
   ];
+  const problems = openIssues(c);
 
   return (
     <div>
@@ -108,6 +114,16 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
       {qcBlocked && c.status === "active" && (
         <p role="status" className="mb-5 rounded-lg bg-amber-50 px-4 py-2 text-sm font-medium text-amber-950">Waiting for the review sign-off before this case can be submitted.</p>
+      )}
+
+      {c.autoShared && c.status === "active" && !c.route && (
+        <div role="status" className="mb-5 flex flex-col gap-3 rounded-xl border border-brand/40 bg-brand-soft p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">{c.consultantId === d.user.id ? "Shared with you automatically" : `Shared automatically with ${consultant?.name ?? "a Sales member"}`}</p>
+            <p className="mt-1 text-sm">{c.consultantId === d.user.id ? "Make it yours by doing anything with it (a note, a problem, moving it forward) or press Keep this lead. Until then it may move to another online Sales member to keep leads even." : "Nobody has worked on it yet, so it may still move to keep leads even among the Sales members who are online."}</p>
+          </div>
+          {c.consultantId === d.user.id && <Button onClick={() => { if (d.keepLead(c.id)) d.toast("This lead is yours now. It will not be moved."); }}>Keep this lead</Button>}
+        </div>
       )}
 
       {c.route && c.status === "active" && (
@@ -166,6 +182,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         ]} />
       </div>
 
+      {problems.length > 0 && tab !== "problems" && (
+        <div role="status" className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[0.9375rem]"><span className="font-semibold">{problems.length === 1 ? "1 open problem" : `${problems.length} open problems`}:</span> {ISSUE_LABEL[problems[problems.length - 1].kind]} · {problems[problems.length - 1].text}</p>
+          <button type="button" className={`${btn.secondary} !min-h-10 shrink-0 text-sm`} onClick={() => setTab("problems")}>See problems</button>
+        </div>
+      )}
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
       <div className="mt-6" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === "overview" && (
@@ -235,7 +257,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         {tab === "history" && (
           <Panel title="Step history" description="Every step change, handoff, acceptance and reassignment, with who did it and when.">
             <Timeline items={[...c.history].reverse().map((h, i) => ({
-              id: `h${i}`, title: h.kind === "claim" ? "Accepted" : h.kind === "assign" ? "Assigned by admin" : h.from && h.from !== h.to ? `${stageLabel(h.from)} → ${stageLabel(h.to)}` : `Lead created at ${stageLabel(h.to)}`, meta: `${h.actor} · ${fmtDateTime(h.at)}`, body: [h.handoff, h.note].filter(Boolean).join(" · ") || undefined,
+              id: `h${i}`, title: h.handoff?.startsWith("Shared automatically") || h.actor === "Automatic sharing" ? "Shared automatically" : h.handoff?.endsWith("kept this lead") ? "Kept the lead" : h.kind === "claim" ? "Accepted" : h.kind === "assign" ? "Assigned by admin" : h.from && h.from !== h.to ? `${stageLabel(h.from)} → ${stageLabel(h.to)}` : `Lead created at ${stageLabel(h.to)}`, meta: `${h.actor} · ${fmtDateTime(h.at)}`, body: [h.handoff, h.note].filter(Boolean).join(" · ") || undefined,
             }))} />
           </Panel>
         )}
@@ -303,8 +325,11 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               </dl>
               <p className="mt-4 text-sm text-ink-muted">Check completeness and translations, then confirm documents are verified when moving to Case Prep.{c.docsVerified ? " This case's documents are marked as verified." : ""}</p>
             </Panel>
+            <div className="xl:col-span-3"><UploadLinksPanel c={c} /></div>
           </div>
         )}
+
+        {tab === "problems" && <ProblemsPanel c={c} />}
 
         {tab === "notes" && <NotesTab caseId={c.id} canAdd={editable && c.status === "active"} />}
       </div>
@@ -345,14 +370,14 @@ function DocRow({ doc, editable }: { doc: Doc; editable: boolean }) {
     if (!file) return;
     if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) { d.toast("Only PDF, JPG or PNG files are accepted.", "error"); return; }
     if (file.size > 10 * 1024 * 1024) { d.toast("That file is larger than 10 MB.", "error"); return; }
-    d.attachDoc(doc.id, file.name);
-    d.toast(`${file.name} attached. (Demo: the file itself is not stored.)`);
+    void d.attachFile(doc.id, file).then((ok) => ok && d.toast(`${file.name} attached. (Demo: the file itself is not stored.)`));
   };
   return (
     <tr>
       <td className={td}>
         <p className="font-medium">{doc.name}</p>
         <p className="text-sm text-ink-muted">{[doc.fileName, doc.note].filter(Boolean).join(" · ") || (doc.category || "No file yet")}</p>
+        {doc.source === "client_link" && <span className="mr-1 mt-1 inline-block"><Pill tone="success">Uploaded by client</Pill></span>}
         {doc.needsTranslation && <span className="mt-1 inline-block"><Pill tone="info">Needs translation</Pill></span>}
       </td>
       <td className={`${td} text-sm text-ink-muted`}>{doc.uploadedBy === "—" ? "Waiting for the client" : `${doc.uploadedBy} · ${fmtDate(doc.at)}`}</td>
@@ -366,7 +391,8 @@ function DocRow({ doc, editable }: { doc: Doc; editable: boolean }) {
           </>
         ) : <Pill tone={DOC_TONE[doc.status]}>{DOC_LABEL[doc.status]}</Pill>}
       </td>
-      <td className={`${td} text-right`}>
+      <td className={`${td} space-x-2 whitespace-nowrap text-right`}>
+        {doc.fileName && <button type="button" className={`${btn.ghost} !min-h-10 text-sm`} onClick={() => d.openDoc(doc.id)}>Open</button>}
         {editable && doc.status === "pending" && (
           <label className={`${btn.secondary} !min-h-10 cursor-pointer text-sm`}>
             Attach file

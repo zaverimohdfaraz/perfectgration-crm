@@ -1,7 +1,12 @@
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Pin the workspace root to this project; a stray lockfile in the home folder otherwise makes Next guess wrong.
+  outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
   eslint: { ignoreDuringBuilds: true },
   // The app uses plain <img> tags, so the image optimiser is switched off. That removes an attack surface (it was the target of recent Next.js advisories).
   images: { unoptimized: true },

@@ -5,12 +5,12 @@ import { Mail } from "@/components/icons";
 import { PageHeader, Panel, Button } from "@/components/ui";
 import { Pill } from "@/components/status";
 import { DeptChip } from "@/components/department";
-import { Field } from "@/components/form";
+import { Field, Toggle } from "@/components/form";
 import { useDemo, type Settings } from "@/lib/store";
 import { VISA_TYPES } from "@/lib/demo-data";
 import { btn, field } from "@/lib/styles";
 
-const SECTIONS = [{ id: "company", label: "Company profile" }, { id: "branding", label: "Branding" }, { id: "regional", label: "Regional" }, { id: "teams", label: "Departments" }, { id: "email", label: "Email reminders" }];
+const SECTIONS = [{ id: "company", label: "Company profile" }, { id: "leads", label: "Lead sharing" }, { id: "branding", label: "Branding" }, { id: "regional", label: "Regional" }, { id: "teams", label: "Departments" }, { id: "email", label: "Email reminders" }];
 
 export default function SettingsPage() {
   const d = useDemo();
@@ -38,6 +38,17 @@ export default function SettingsPage() {
               <Field label="Country" htmlFor="st-country"><input id="st-country" className={field} value={s.country} onChange={(e) => set("country", e.target.value)} /></Field>
               <Field label="City" htmlFor="st-city"><input id="st-city" className={field} value={s.city} onChange={(e) => set("city", e.target.value)} placeholder="Riyadh, Jeddah…" /></Field>
             </div>
+          </Panel>
+
+          <Panel id="leads" title="Lead sharing (Sales)" description="How leads passed to the whole Sales team, or to one visa team, reach people.">
+            <Toggle checked={s.autoShareLeads} onChange={(v) => set("autoShareLeads", v)} label="Share leads automatically among Sales members who are online"
+              description="Leads are split evenly. When someone else comes online, untouched leads move to them so everyone stays even. A lead never moves once its holder has worked on it. When this is off, the first person to accept a lead gets it." />
+            <div className="mt-2 max-w-xs">
+              <Field label="Counts as offline after (minutes)" htmlFor="st-online" hint="Minutes without the CRM open. Their untouched leads then go to people still online.">
+                <input id="st-online" type="number" min={2} max={240} className={field} value={s.onlineMinutes} disabled={!s.autoShareLeads} onChange={(e) => set("onlineMinutes", Math.min(240, Math.max(2, Number(e.target.value) || 10)))} />
+              </Field>
+            </div>
+            {d.mode === "demo" && <p className="mt-3 text-sm text-ink-muted">Works with the live system (it needs real sign-ins to know who is online). In the demo, leads wait to be accepted.</p>}
           </Panel>
 
           <Panel id="branding" title="Branding" description="The supplied logo is used exactly as provided.">

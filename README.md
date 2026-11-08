@@ -1,128 +1,118 @@
-# Perfectgration CRM: interactive UI preview
+# Perfectgration CRM (v11.2)
 
-A complete, working-looking interface for the Perfectgration visa and immigration CRM. Every screen and every flow is built and clickable. **Nothing is saved**: data lives in the browser's memory and resets when you reload the page. The backend (MongoDB, real login, file storage, emails) connects in the next phase.
+Visa and immigration CRM with three teams (Social Media, Sales, Case Manager), handoffs with "first to accept", problems and holds on every case, client upload links, and a full backend: MongoDB Atlas, private Amazon S3 file storage, real sign-in.
+
+The app runs in two modes, chosen by one environment variable:
+
+| `NEXT_PUBLIC_DATA_MODE` | What you get |
+|---|---|
+| empty (default) | **Demo**: sample data in memory, demo accounts on the sign-in page, nothing saved. Good for showing the client. |
+| `api` | **Live**: real database, real passwords, real file uploads. Set it up with **[docs/BACKEND_SETUP.md](docs/BACKEND_SETUP.md)**. |
 
 ## Run it
 
-Requires Node.js 20 or newer.
+Requires Node.js 22.
 
 ```bash
 npm install
-npm run dev        # open http://localhost:3000/login
-npm run build      # production check
-npm start
+npm run dev          # http://localhost:3000
+npm test             # business rules, lead sharing, permissions, database shapes and API input checks (no database needed)
+npm run build        # production build
 ```
 
-## Demo accounts (login page)
+Live mode only (after filling `.env.local`, see the setup guide):
 
-| Account | Team | Departments |
-|---|---|---|
-| Aun Rehman | Administrator | All |
-| Layla Hassan | Manager (QC sign-off and outcomes, no commission) | All |
-| Reem Al-Zahrani | Social Media Team (captures leads) | All |
-| Omar Saleh | Sales Team | Study, Visit |
-| Noura Al-Qahtani | Sales Team | Work, Skilled |
-| Faisal Mansour | Sales Team | EB2-NIW |
-| Sultan Haddad | Case Manager | Study, Visit |
-| Dina Karim | Case Manager | Work, Skilled, EB2-NIW |
-| Hadi Karim | Sales Team (inactive: shows the inactive message) | Work |
+```bash
+npm run db:seed      # once: creates the 13 collections, settings and the first administrator
+npm run check:setup  # checks env variables, MongoDB, S3 and CORS
+```
 
-Passwords are not checked in this preview. Set `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=false` to hide the list.
+## What is new in v11.2
 
-## The process (see `docs/PROCESS_AND_PHASES.md`)
+- **Sign-in record (administrator only).** The Dashboard has a **Sign-ins** panel: who signed in today and at what time, who is online now, who has not signed in, wrong-password attempts today, and (for the date filter) on how many working days each person signed in. **Administration → Sign-in record** has the full day-by-day history: a calendar (first sign-in time per person per day), a list by day (first sign-in, last seen, sign-out, time the CRM was open, device) and totals by person (days in, usual start time), with a team filter and **Download CSV**.
+- Recorded automatically on every sign-in, sign-out, wrong password and once-a-minute report from an open CRM, in a 13th collection `logins` (one row per person per day). It never stops anyone signing in if the record cannot be written.
+- **Agents page** rebuilt: link a case by its reference, record commission per case, mark each case paid.
 
-Four teams own the stages: Social Media (Enrolled), Sales (First Call to Deal Finalised), Case Manager (Document Collection to Submitted), Admin / Manager (Outcome). Each case shows who is responsible now, and only that person or an administrator can work on it.
+## What was new in v11
 
-## What to try (everything below works in the preview)
+- **Dashboard is back**, at the top of the sidebar and the first page after signing in. Administrators and managers see all three teams in one place; a team member sees **only their own work** (their leads and cases, and what is waiting for them).
+- **The date filter now applies to everything** on the Dashboard and the Social Media, Sales and Case Manager pages: numbers, boards, lists and tables, not only the charts. A case counts in a period when anything happened on it then (created, moved, accepted, a note, a problem, a submission update, an appointment or a deadline).
+- **Team members see only their own data** on the team pages (not the whole team's pipeline or tables). Leads they can accept are shown separately as "waiting for you".
+- **"Waiting to be accepted" says which team**: "in Sales", "in Case Manager", and the visa team when there is one.
+- **On hold by client**: a separate choice when pausing a case, shown as "On hold by client" everywhere, and counted separately on the Dashboard.
 
-1. **Capture a lead** as Reem (Add client): choose visa type, destination, budget, source and priority, and tag a Sales consultant. It is enrolled and handed to Sales.
-2. **Sales:** sign in as that consultant and move the case forward. Each stage asks for what the process needs (call summary, appointment, visit and fee, agreement and fees). Moving past the deal hands the case to a Case Manager.
-3. **Add documents** (Documents tab, Add document): there is no preset list. Give each document a name, attach a file now or later, and mark if it needs translation.
-4. **Case Manager:** confirm documents are verified to move to Case Prep, then ask for QC.
-5. **QC:** sign in as Layla. Approve the QC, or return it for changes. Submission is blocked until QC is approved.
-6. **Submitted, then Outcome:** as Layla or Aun, log the outcome. Approved asks you to confirm the client was told (Aun can log commission). Refused offers appeal (loops back to Case Prep), re-apply (opens a new case) or no further action.
-7. **Escalations:** the bell and dashboard show the flowchart's triggers, such as no call after 24 hrs or not submitted within 2 days of QC. Dismiss or send a reminder.
-8. **Team page:** Teams (Social Media, Sales, Case Manager, Admin / Manager) and Departments (Study, Work, Visit, Skilled, EB2-NIW) are both shown. Filter by either, add a member and choose their team and departments.
-9. **Workflow setup:** see the process map, change days allowed per stage and default handlers, then move a case to see them applied.
-10. Everything else from before still works: end or pause and reactivate cases, eligibility, notes, partner tasks, team notepad with audiences, agents, reports with CSV and PDF, settings.
+## What was new in v10
 
-## Before real data goes in
+- **Automatic lead sharing (Sales).** Leads passed to Sales go straight to the Sales members who are online, split evenly. When another member signs in, untouched leads move to them (40 leads, 4 people: 10 each; a 5th: 8 each). A lead never moves once its holder has worked on it or pressed **Keep this lead**. Settings → Lead sharing switches it off (back to "first to accept"). Rules: `lib/lead-share.ts`; guide: docs/BACKEND_SETUP.md section 7.
+- **Meta Ads and Google Ads, read directly from Meta and Google** (no Excel). The Social Media page shows spend, clicks, leads reported by the ads, the leads actually created in the CRM per campaign, and the real cost per CRM lead. **Optional**: without the keys the page says "Not connected" and nothing else changes. Setup: **docs/ADS_SETUP.md**.
+- Screens refresh themselves within a minute when something changes (a lead shared with you, a new message), and the Team page shows who is online.
+- 12th collection: `adinsights`.
 
-- `lib/session.ts` and `app/login/actions.ts` are a **preview stub**: a plain cookie, no password check. Replace with hashed passwords, login rate limiting, a forced first-login password change and a server-side session store.
-- `lib/permissions.ts` mirrors the rules in the screens. **The real enforcement must be on the server**: every API route, export and file download checks permissions, and commission and outcome fields are removed from responses for non-admins.
-- `lib/store.tsx` holds all demo state. **Each function in it is where the matching API call goes** (for example `moveStage` becomes `POST /api/cases/:id/move`).
-- `lib/demo-data.ts` is fictional. Do not load real client records into this build.
-- `lib/dates.ts` uses a fixed demo date (21 October 2026) so the demo is stable. Use the real clock in Phase 2.
-- Filters and pagination run in the browser here. In Phase 2 they move to the server (query parameters, database indexes) so large datasets stay fast.
-- The Excel download is a `.csv`. Real `.xlsx` and A4 PDFs are produced on the server in Phase 2.
-- Placeholder rules: the eligibility scoring and the required-document checklists are illustrative. The client has not supplied the real rules.
+## What was new in v9
 
-## Brand and design
+- **Sidebar pages per team** instead of one dashboard: **Social Media** (leads, sources, campaigns, time to pass, ad platforms panel ready for Meta and Google Ads), **Sales** (pipeline board, appointments this week, conversion, fees, team performance), **Case Manager** (submissions, awaiting result, approvals and denials, problems and holds, third-party waits, workload). Every page has **Today / This week / This month / Custom range** with day-by-day charts.
+- **Problems and holds** on every case: record what is stopping it and who it is waiting on (client, third party, authority, internal), then mark it resolved. Open problems show on the case, on the team pages, and in the case lists. Pausing a case records a problem automatically.
+- **Team Notepad**: only the administrator can message everyone, a team, a visa department or chosen people. Team members can only message the administrator.
+- **Client upload links**: Documents → New upload link. Choose files to request and an expiry (24 h, 3 days, 7 days or a date). Share by copy or WhatsApp. The client uploads from their phone without signing in; files go to S3 and are attached to the case. End a link at any time.
+- **Team page**: totals, per-person work (holding, overdue, problems, steps moved and accepted this month, open to-dos), cases they hold, quick deactivate.
+- **Backend**: 30 API routes, every one checking permissions on the server with the same rule functions the screens use.
 
-- The logo is `public/brand/logo.png`, used as supplied. The favicon and app icons were made from the supplied mark. **The source file is small (150 px), so icons may look soft on high-resolution screens. A larger original (512 px or more) gives crisper icons.**
-- Colours are in `tailwind.config.ts`: the logo light blue (`#009FE3`) with dark navy text on it. Each department has its own chip colour and icon (`components/department.tsx`). Status is always written in words, never shown by colour alone.
-- Text is 15 to 16 px or larger, controls are at least 44 px tall, and dialogs trap keyboard focus.
+## How the live system is built
 
-## Keeping it light and fast
+```
+Browser ── screens (React) ── lib/store.tsx ──► /api/*  (Next.js route handlers on Vercel)
+                    │                                   │
+            lib/case-logic.ts  ◄──── same rules ────►  lib/case-logic.ts
+                                                        │
+                                       MongoDB Atlas (records)   Amazon S3 (files, private)
+```
 
-- Only three runtime packages: Next.js, React and React DOM. Styling uses Tailwind, and icons are a small local file (`components/icons.tsx`).
-- `node_modules` is mostly the Next.js framework itself, which is required. Never copy `node_modules` or `.next` into zips or cloud-synced folders.
-- For a smooth demo use `npm run build` then `npm start`. It is much faster than `npm run dev`.
-- On Windows, exclude the project folder from antivirus scanning and keep it out of OneDrive or Dropbox.
-
-## Security upgrade (Next.js)
-
-The earlier build used Next.js 14.2.15, which npm flags as vulnerable. The whole Next.js 14 line is no longer receiving security fixes, so this version moves to the supported 15.5 line:
-
-- `next` 15.5.28 and React 19.1 (patched releases).
-- The image optimiser is switched off (`images.unoptimized`). The app uses plain `<img>` tags, and the optimiser was the target of recent Next.js advisories.
-- A Strict-Transport-Security header was added to the existing security headers.
-- Node 22 is required (`engines` is `22.x`). Node 20 is end-of-life. Vercel picks Node 22 automatically from this setting.
-- Run `npm audit` after installing, and keep Next.js updated. Check https://nextjs.org/blog/tag/security from time to time.
-
-**Protecting a public preview.** This preview has no real login, so anyone with the link could open it. Do one or both:
-
-1. In Vercel, set an environment variable `DEMO_ACCESS_CODE` to a secret phrase. People must then enter it as the password on the login page.
-2. Turn on Vercel Deployment Protection (Project, Settings, Deployment Protection).
-
-Never put real client data into this preview.
-
-## Updating an existing project (important)
-
-Copying a new zip over an old folder leaves old files behind. Those leftovers caused the failed Vercel build (`app/(app)/notes` and `app/(app)/tasks` are from older versions and no longer exist). To update cleanly:
-
-1. Open your project folder. Delete everything **except** the hidden `.git` folder and any `.env` files.
-   - Windows PowerShell: `Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" -and $_.Name -notlike ".env*" } | Remove-Item -Recurse -Force`
-   - Mac or Linux: `find . -mindepth 1 -maxdepth 1 ! -name .git ! -name ".env*" -exec rm -rf {} +`
-2. Copy the contents of this zip's `perfectgration-crm-ui` folder into it.
-3. Run `npm install` (this creates a fresh `package-lock.json`), then `npm run build`.
-4. When the build passes: `git add -A`, `git commit -m "Upgrade Next.js and restore v4 layout"`, `git push`. Vercel redeploys on its own.
-
-As a safety net, `npm run build` and `npm run dev` first run `scripts/clean-stale.mjs`, which deletes the known leftover files from older versions and prints what it removed.
+- **One set of rules.** `lib/case-logic.ts` holds every case change (create, pass, accept, move, review, submit, result, hold, problems). The browser runs it for an instant update; the server runs the same function on the stored case and saves the result. The rules can never differ.
+- **"First to accept" is safe.** A case is saved only if nobody changed it since it was read, so when two people press Accept, one gets it and the other is told "Someone else already accepted this case."
+- **Each person receives only what they may see.** Team members get only their cases; commission is removed for everyone except the administrator. After a handoff, the previous team keeps only a reduced copy for their own figures (no details from after the handoff).
+- **Files never touch the database.** The browser uploads straight to S3 with a 5-minute signed link; the server checks the file arrived (type and size) and saves only its key. Files open through another 5-minute signed link, after a permission check.
+- **Sign-in**: bcrypt password hashes, an httpOnly signed cookie (10 hours), a forced password change on first sign-in, a 15-minute lock after 5 wrong passwords, and instant sign-out everywhere when an account is switched off or its password reset.
+- **Every API input is checked** (zod); requests from other websites are refused.
 
 ## Structure
 
 ```
-app/login               sign-in
-app/(app)               signed-in area: sidebar, topbar, demo state
-  dashboard cases clients partner-tasks notepad
-  reports  (Admin and Manager)
-  team agents workflow settings  (Admin)
-components              UI, dialogs, status badges, departments, stepper
-lib                     demo data, state (store.tsx), permissions, dates
+app/(app)/            signed-in screens: dashboard, social, sales, case-manager, cases, clients, todo, partner-tasks, notepad, reports, team, sign-ins, agents, workflow, settings
+app/api/              the API (31 routes) · app/api/public/ = client upload links (no sign-in)
+app/u/[token]/        the page clients open to upload files
+app/login, app/change-password
+components/           UI pieces · hub.tsx (charts, boards, range picker) · case-extras.tsx (problems, upload links)
+lib/case-logic.ts     all case rules (shared by browser and server)
+lib/permissions.ts    who may see and do what
+lib/store.tsx         screen state; in live mode sends every change to the API
+lib/server/           database connection, the 13 collections (models.ts), sign-in, S3, API helpers, input checks
+scripts/              seed.ts, check-setup.ts, test-logic.ts
+docs/BACKEND_SETUP.md step-by-step: Atlas, S3, Vercel, Hostinger domain
 ```
 
-## Hosting notes
+## Demo accounts (demo mode only)
 
-Intended target: Hostinger managed Node.js hosting (`npm run build`, then `npm start`). Confirm the plan runs a long-lived Node process, and whether uploaded files persist and are backed up. Database: MongoDB Atlas. Check which regions are available near Saudi Arabia, and what the Saudi Personal Data Protection Law means for where personal data is stored. Get legal advice.
+| Account | Team | Departments |
+|---|---|---|
+| Aun Rehman | Administrator | All |
+| Layla Hassan | Manager (review sign-off and results, no commission) | All |
+| Reem Al-Zahrani | Social Media | All |
+| Omar Saleh | Sales | Study, Visit |
+| Noura Al-Qahtani | Sales | Work, Skilled |
+| Faisal Mansour | Sales | EB2-NIW |
+| Sultan Haddad | Case Manager | Study, Visit |
+| Dina Karim | Case Manager | Work, Skilled, EB2-NIW |
+| Hadi Karim | Sales (inactive) | Work |
 
-## v8: three teams, handoffs and to-do list
+In demo mode passwords are not checked. To protect a public demo, set `DEMO_ACCESS_CODE` (it becomes the password for every account) or turn on Vercel Deployment Protection. **Never put real client data into demo mode.**
 
-- **Teams:** Social Media, Sales, Case Manager. Each only sees its own part of the process. Admin and Manager see everything.
-- **Social Media** creates the lead (visa type, budget, destination) and passes it to Sales. Default is the whole Sales Team: every member sees it and the first to accept gets it. Optional: one visa team, or one specific person.
-- **Sales (steps 1 to 5):** First Call, Document Assessment, Office Appointment, Deal Finalised, Advance / Fees Collection. Then pass to the Case Manager the same way. After the case is accepted the sender no longer sees it.
-- **Case Manager (steps 6 to 11):** Document Collection, Verify Documents, Case Prep, Review, Submit (time recorded, then "what happened" updates), Result (Approved, Denied, Returned, Withdrawn).
-- **Admin** can assign a waiting case to anyone, and can change the sales member or case manager at any time (Edit or reassign).
-- **Accountability:** case page tab shows who held each step and how long; Reports shows teams, stuck steps, workload and unaccepted cases.
-- **To-Do List:** every employee manages their own tasks; admin can see, add, edit and delete for everyone.
-- **Fluid sizing:** the root font size scales with the screen, so text, spacing and layout shrink together on smaller screens.
+## Updating an existing project
+
+Copying a new zip over an old folder leaves old files behind. Delete everything except `.git` and your `.env*` files, copy this project in, then `npm install` and `npm run build`. `scripts/clean-stale.mjs` also removes known leftovers from older versions on every build.
+
+## Still to decide with the client
+
+- The eligibility scoring and document checklists are placeholders: the client has not supplied the real rules.
+- Meta Ads and Google Ads results: the Social Media page has the panel ready; connecting their reporting APIs is a separate step (needs the client's ad accounts).
+- Saudi Personal Data Protection Law: check with a lawyer where client data may be stored (Atlas and S3 regions).
+- Emails (EmailJS or similar) are not connected yet; WhatsApp sharing uses links.

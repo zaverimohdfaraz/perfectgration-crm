@@ -8,7 +8,7 @@ import { Pager } from "@/components/pagination";
 import { DaysBadge, DeadlineBadge, Pill, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
 import { IntakeDialog } from "@/components/dialogs-cases";
 import { useDemo } from "@/lib/store";
-import { OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, STATUS_LABEL, VISA_TYPES, LEAD_SOURCES, stageNumber, userById, visaLabel, type CaseStatus } from "@/lib/demo-data";
+import { waitingLabel, OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, STATUS_LABEL, VISA_TYPES, LEAD_SOURCES, stageNumber, userById, visaLabel, type CaseStatus } from "@/lib/demo-data";
 import { canAddCases, displayStatus } from "@/lib/permissions";
 import { daysBetween, deadlineState } from "@/lib/dates";
 import { btn, field, td, th } from "@/lib/styles";
@@ -75,7 +75,9 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
   );
   const ariaSort = (k: SortKey) => (sort.key === k ? (sort.dir === 1 ? "ascending" : "descending") : "none");
   const staff = d.users.filter((u) => u.role === "consultant");
-  const waitingCount = d.visible.filter((c) => c.route && c.status === "active").length;
+  const waitingList = d.visible.filter((c) => c.route && c.status === "active");
+  const waitingCount = waitingList.length;
+  const waitingByTeam = (["sales", "case"] as const).map((t) => ({ t, n: waitingList.filter((c) => c.route?.to === t).length })).filter((x) => x.n > 0);
 
   return (
     <div>
@@ -99,7 +101,7 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
 
       {waitingCount > 0 && !waiting && (
         <button type="button" onClick={() => { setWaiting(true); setPage(1); }} className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-brand/40 bg-brand-soft px-4 py-3 text-left text-[0.9375rem] font-semibold hover:bg-brand-tint">
-          <span>{waitingCount} {waitingCount === 1 ? "case is" : "cases are"} waiting to be accepted</span><span className="text-brand-deep">Show them</span>
+          <span>{waitingCount} {waitingCount === 1 ? "case is" : "cases are"} waiting to be accepted: {waitingByTeam.map((x) => `${x.n} in ${x.t === "sales" ? "the Sales Team" : "the Case Manager team"}`).join(", ")}</span><span className="text-brand-deep">Show them</span>
         </button>
       )}
 
@@ -140,7 +142,7 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
                         <td className={td}><Link href={`/cases/${c.id}`} className="font-semibold hover:text-brand-deep hover:underline">{clientName(c.clientId)}</Link><p className="text-sm text-ink-muted">{c.ref}</p>{c.priority !== "normal" && <span className="mt-1 inline-block"><Pill tone={c.priority === "urgent" ? "danger" : "warning"}>{PRIORITY_LABEL[c.priority]} priority</Pill></span>}</td>
                         <td className={td}><VisaBadge visa={c.visa} /></td>
                         <td className={td}><StageBadge stage={c.stage} /></td>
-                        <td className={td}><p>{c.route ? <Pill tone="warning">Waiting to be accepted</Pill> : (d.users.find((u) => u.id === c.consultantId)?.name ?? "Not assigned")}</p><p className="text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}</p></td>
+                        <td className={td}><p>{c.route ? <Pill tone="warning">{waitingLabel(c)}</Pill> : (d.users.find((u) => u.id === c.consultantId)?.name ?? "Not assigned")}</p><p className="text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}</p></td>
                         <td className={td}><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></td>
                         <td className={td}><DaysBadge days={daysBetween(c.stageSince)} /></td>
                         <td className={td}><DeadlineBadge iso={c.deadline} /></td>
@@ -159,7 +161,7 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
                   <li key={c.id}>
                     <Link href={`/cases/${c.id}`} className="block space-y-2.5 p-4 hover:bg-brand-tint/50">
                       <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{clientName(c.clientId)}</p><p className="text-sm text-ink-muted">{c.ref} · {visaLabel(c.visa)}</p></div><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></div>
-                      <div className="flex flex-wrap gap-2"><StageBadge stage={c.stage} /><DaysBadge days={daysBetween(c.stageSince)} />{c.route && <Pill tone="warning">Waiting to be accepted</Pill>}</div>
+                      <div className="flex flex-wrap gap-2"><StageBadge stage={c.stage} /><DaysBadge days={daysBetween(c.stageSince)} />{c.route && <Pill tone="warning">{waitingLabel(c)}</Pill>}</div>
                       <p className="text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}{!c.route && c.consultantId ? ` · ${d.users.find((u) => u.id === c.consultantId)?.name}` : ""}</p>
                       <DeadlineBadge iso={c.deadline} />
                     </Link>

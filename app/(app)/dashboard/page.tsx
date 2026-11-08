@@ -1,136 +1,188 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { AlertTriangle, Briefcase, CalendarClock, CheckCircle2, Clock, Plus, UserPlus } from "@/components/icons";
-import { PageHeader, Panel, Stat, Button, EmptyState } from "@/components/ui";
-import { Timeline } from "@/components/timeline";
+import type { ReactNode } from "react";
+import { PageHeader, Panel, EmptyState } from "@/components/ui";
 import { Pill } from "@/components/status";
-import { IntakeDialog } from "@/components/dialogs-cases";
+import { BarChart, Kpi, RangePicker, useRange } from "@/components/hub";
+import { SignInsPanel } from "@/components/sign-ins";
 import { useDemo } from "@/lib/store";
-import { alertsFor, metricsFor, recentActivity, stageCounts, tasksFor, todosFor } from "@/lib/insights";
-import { OWNER_LABEL, STAGE_OWNER, stageLabel } from "@/lib/demo-data";
-import { canAddCases, claimable, visibleNotes } from "@/lib/permissions";
-import { deadlineState, fmtDate } from "@/lib/dates";
-import { btn } from "@/lib/styles";
+import { ISSUE_LABEL, STAGE_OWNER, WORK_TEAM_LABEL, stageLabel, waitingLabel, type Case } from "@/lib/demo-data";
+import { claimIn, daysSince, entered, enteredIn, inPeriod, inRange, pct, series } from "@/lib/analytics";
+import { openIssues } from "@/lib/case-logic";
+import { canSeeOutcome, claimable, heldByClient, myWork } from "@/lib/permissions";
+import { deadlineState, fmtDateTime, fmtSar } from "@/lib/dates";
 
+const overdue = (c: Case) => c.status === "active" && deadlineState(c.deadline) === "overdue";
+
+/**
+ * The central dashboard. Administrators and managers see all three teams. A team member sees only
+ * their own work: the leads and cases they created, hold or handled, and what is waiting for them.
+ * Every number and list follows the date filter.
+ */
 export default function DashboardPage() {
   const d = useDemo();
-  const [dialog, setDialog] = useState<"client" | "case" | null>(null);
-  const m = metricsFor(d.user, d.cases);
-  const urgent = alertsFor(d.user, d.cases, d.clients).filter((a) => (a.level === "critical" || a.level === "high") && !d.dismissed.includes(a.id));
-  const stages = stageCounts(d.user, d.cases);
-  const maxStage = Math.max(1, ...stages.map((s) => s.n));
-  const dueTasks = tasksFor(d.user, d.tasks).filter((t) => t.progress < 100 && ["overdue", "d1", "d3"].includes(deadlineState(t.deadline)));
-  const pinned = visibleNotes(d.user, d.teamNotes).filter((n) => n.pinned);
-  const queue = claimable(d.user, d.cases);
-  const myTodos = todosFor(d.user, d.todos).filter((t) => !t.done && (d.user.role !== "admin" || t.ownerId === d.user.id)).sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999")).slice(0, 5);
-  const firstName = d.user.name.split(" ")[0];
+  const r = useRange("month");
+  const range = r.range;
+  const leader = d.user.role !== "consultant";
+  const team = d.user.workTeam;
+  const name = (c: Case) => d.clients.find((x) => x.id === c.clientId)?.name ?? "Client";
+
+  // Whose data: everything for leaders; only this person's own work for a team member.
+  const work = leader ? d.cases : myWork(d.user, d.cases);
+  const open = (leader ? d.visible : d.visible.filter((c) => !c.route && c.consultantId === d.user.id)).filter((c) => inPeriod(c, range));
+  const forMe = leader ? [] : claimable(d.user, d.cases);
+  const outcomes = canSeeOutcome(d.user) || team === "case";
+
+  const newLeads = work.filter((c) => enteredIn(c, "lead", range) && (leader || c.leadById === d.user.id));
+  const toSales = work.filter((c) => enteredIn(c, "firstcall", range) && (leader || c.leadById === d.user.id || c.salesId === d.user.id));
+  const salesAccepted = work.filter((c) => claimIn(c, "sales", range) && (leader || c.salesId === d.user.id));
+  const deals = work.filter((c) => enteredIn(c, "advance", range) && (leader || c.salesId === d.user.id || (team === "social" && c.leadById === d.user.id)));
+  const toCm = work.filter((c) => enteredIn(c, "doccollect", range) && (leader || c.salesId === d.user.id || c.caseManagerId === d.user.id));
+  const fees = toCm.filter((c) => leader || c.salesId === d.user.id).reduce((s, c) => s + (c.feesCollectedSar ?? 0), 0);
+  const submitted = work.filter((c) => inRange(c.submittedAt, range) && (leader || c.caseManagerId === d.user.id));
+  const results = work.filter((c) => c.stage === "outcome" && inRange(entered(c, "outcome")?.at, range) && (leader || c.caseManagerId === d.user.id));
+  const approved = results.filter((c) => c.status === "approved").length;
+  const denied = results.filter((c) => c.status === "refused").length;
+
+  const waiting = leader ? d.visible.filter((c) => c.route && c.status === "active" && inPeriod(c, range)) : forMe;
+  const waitSales = waiting.filter((c) => c.route?.to === "sales");
+  const waitCm = waiting.filter((c) => c.route?.to === "case");
+  const late = open.filter(overdue);
+  const problems = open.filter((c) => openIssues(c).length > 0);
+  const onHold = open.filter((c) => c.status === "on_hold");
+  const holdClient = onHold.filter(heldByClient).length;
+
+  // The chart shows what matters for this person's team; leaders see new leads against deals.
+  const cmReceived = toCm.filter((c) => leader || c.caseManagerId === d.user.id);
+  const [chartNames, chartData] = leader ? [["New leads", "Deals finalised"], [newLeads.map((c) => ({ at: entered(c, "lead")?.at })), deals.map((c) => ({ at: entered(c, "advance")?.at }))]]
+    : team === "social" ? [["Leads I created", "Passed to Sales"], [newLeads.map((c) => ({ at: entered(c, "lead")?.at })), toSales.map((c) => ({ at: entered(c, "firstcall")?.at }))]]
+    : team === "case" ? [["Received", "Submitted"], [cmReceived.map((c) => ({ at: entered(c, "doccollect")?.at })), submitted.map((c) => ({ at: c.submittedAt }))]]
+    : [["Leads received", "Deals finalised"], [toSales.map((c) => ({ at: entered(c, "firstcall")?.at })), deals.map((c) => ({ at: entered(c, "advance")?.at }))]];
+  const chart = series(range, chartData as { at?: string }[][]);
+  const attention = [...new Map([...late, ...problems, ...onHold, ...waiting].map((c) => [c.id, c])).values()]
+    .sort((a, b) => Number(overdue(b)) - Number(overdue(a)) || a.stageSince.localeCompare(b.stageSince)).slice(0, 12);
+  const activity = open.flatMap((c) => c.history.filter((h) => inRange(h.at, range)).map((h) => ({ c, h })))
+    .sort((a, b) => b.h.at.localeCompare(a.h.at)).slice(0, 12);
+
+  const allSteps = [
+    { label: "New leads", n: newLeads.length, teams: ["social"] },
+    { label: "Passed to Sales", n: toSales.length, teams: ["social", "sales"] },
+    { label: "Deals finalised", n: deals.length, teams: ["social", "sales"] },
+    { label: "Passed to Case Manager", n: toCm.length, teams: ["sales", "case"] },
+    { label: "Submitted", n: submitted.length, teams: ["case"] },
+    ...(outcomes ? [{ label: "Approved", n: approved, teams: ["case"] }] : []),
+  ];
+  const funnel = allSteps.filter((s) => leader || (team && s.teams.includes(team)));
+  const max = Math.max(1, ...funnel.map((f) => f.n));
+
+  const showSocial = leader || team === "social";
+  const showSales = leader || team === "sales";
+  const showCase = leader || team === "case";
 
   return (
     <div>
       <PageHeader
-        eyebrow="Good morning"
-        title={`Welcome back, ${firstName}`}
-        description="Here is your case activity and the work that needs attention today."
-        actions={canAddCases(d.user) ? (<><Button variant="secondary" onClick={() => setDialog("client")}><UserPlus size={18} aria-hidden /> Add client</Button><Button onClick={() => setDialog("case")}><Plus size={18} aria-hidden /> New lead</Button></>) : undefined}
+        eyebrow={leader ? "All teams" : `${WORK_TEAM_LABEL[team ?? "sales"]} · your work only`}
+        title="Dashboard"
+        description={leader ? "Social Media, Sales and Case Manager in one place. Every number follows the date filter." : "Your leads and cases only. Every number follows the date filter."}
+        actions={<RangePicker state={r} />}
       />
 
-      {urgent.length > 0 ? (
-        <section aria-labelledby="urgent-title" className="mb-6 flex flex-col gap-4 rounded-xl border border-red-300 bg-red-50 p-5 md:flex-row md:items-center md:justify-between">
-          <div className="flex gap-3">
-            <AlertTriangle aria-hidden className="mt-0.5 shrink-0 text-red-800" size={22} />
-            <div>
-              <h2 id="urgent-title" className="font-semibold text-red-950">{urgent.length} {urgent.length === 1 ? "item needs" : "items need"} action now</h2>
-              <p className="text-sm text-red-950/80">{m.overdue > 0 && `${m.overdue} overdue. `}{m.urgent > 0 && `${m.urgent} stuck for more than 21 days. `}{m.dueWithin3 > 0 && `${m.dueWithin3} due within three days.`}</p>
-            </div>
-          </div>
-          <Link href="/cases?attention=urgent" className={btn.primary}>Review urgent cases</Link>
-        </section>
-      ) : (
-        <section aria-label="Status" className="mb-6 flex items-center gap-3 rounded-xl border border-green-300 bg-green-50 p-5 text-green-950">
-          <CheckCircle2 aria-hidden size={22} className="shrink-0" /><p className="font-medium">No overdue or urgent cases right now.</p>
-        </section>
+      {forMe.length > 0 && (
+        <Link href="/cases?waiting=1" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-brand/40 bg-brand-soft px-4 py-3 text-[0.9375rem] font-semibold hover:bg-brand-tint">
+          <span>{forMe.length} {forMe.length === 1 ? "case is" : "cases are"} waiting for you to accept in the {WORK_TEAM_LABEL[team ?? "sales"]}</span><span className="text-brand-deep">Open</span>
+        </Link>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Active cases" value={m.active} hint={`${m.total} visible to you`} icon={<Briefcase size={22} />} />
-        <Stat label="Stuck over 21 days" value={m.urgent} tone={m.urgent ? "red" : "blue"} hint="Needs immediate attention" icon={<AlertTriangle size={22} />} />
-        <Stat label="Due within 3 days" value={m.dueWithin3} tone={m.dueWithin3 ? "amber" : "blue"} hint="Deadlines to prepare for" icon={<CalendarClock size={22} />} />
-        <Stat label="Overdue deadlines" value={m.overdue} tone={m.overdue ? "red" : "blue"} hint="Past the agreed date" icon={<Clock size={22} />} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {showSocial && <Kpi label={leader ? "New leads" : "Leads I created"} value={newLeads.length} hint={range.label} />}
+        {showSocial && <Kpi label="Passed to Sales" value={toSales.length} hint={`${pct(toSales.length, newLeads.length)} of new leads`} />}
+        {showSales && <Kpi label={leader ? "Accepted by Sales" : "Leads I accepted"} value={salesAccepted.length} hint={range.label} />}
+        {(showSales || leader) && <Kpi label="Deals finalised" value={deals.length} tone="good" hint={leader ? `Conversion ${pct(deals.length, toSales.length)}` : range.label} />}
+        {showSales && <Kpi label="Fees collected" value={fmtSar(fees)} hint={`${toCm.filter((c) => leader || c.salesId === d.user.id).length} passed to Case Manager`} />}
+        {showCase && <Kpi label={leader ? "Received by Case Manager" : "Cases I received"} value={toCm.filter((c) => leader || c.caseManagerId === d.user.id).length} hint={range.label} />}
+        {showCase && <Kpi label="Submitted" value={submitted.length} hint={range.label} />}
+        {showCase && outcomes && <Kpi label="Approved / denied" value={`${approved} / ${denied}`} tone={denied > approved ? "danger" : "good"} hint={results.length ? `${pct(approved, results.length)} approved` : "No results yet"} />}
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
-          <Panel title="Today's priorities" description="The next actions most likely to need you." flush>
-            {urgent.length === 0 && dueTasks.length === 0 ? (
-              <EmptyState title="Nothing urgent for today" body="When a deadline is close or a case stalls, it will appear here with a direct link." />
-            ) : (
-              <ul className="divide-y divide-line">
-                {urgent.slice(0, 5).map((a) => (
-                  <li key={a.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0"><p className="font-semibold">{a.title}</p><p className="text-sm text-ink-muted">{a.detail}</p></div>
-                    <Link href={`/cases/${a.caseId}`} className={`${btn.secondary} shrink-0`}>Open case</Link>
-                  </li>
-                ))}
-                {dueTasks.map((t) => (
-                  <li key={t.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0"><p className="font-semibold">{t.title}</p><p className="text-sm text-ink-muted">Partner task · {t.partner} · due {fmtDate(t.deadline)}</p></div>
-                    <Link href="/partner-tasks" className={`${btn.secondary} shrink-0`}>View task</Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
+      <h2 className="mb-2 mt-6 text-lg font-semibold">Needs attention</h2>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Kpi label={leader ? "Waiting to be accepted" : "Waiting for you"} value={waiting.length} tone={waiting.length ? "warning" : "default"}
+          hint={leader ? `Sales Team ${waitSales.length} · Case Manager ${waitCm.length}` : "You can accept these"} />
+        <Kpi label="Overdue" value={late.length} tone={late.length ? "danger" : "default"} hint="Past the step's deadline" />
+        <Kpi label="Open problems" value={problems.length} tone={problems.length ? "warning" : "default"} hint="Recorded on the case" />
+        <Kpi label="On hold" value={onHold.length} tone={onHold.length ? "warning" : "default"} hint={`By client ${holdClient} · by us ${onHold.length - holdClient}`} />
+      </div>
 
-          {queue.length > 0 && (
-            <Panel title="Waiting for you to accept" description="These were passed to your team. The first person to accept gets access." flush>
-              <ul className="divide-y divide-line">
-                {queue.slice(0, 5).map((c) => (
-                  <li key={c.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0"><p className="font-semibold">{d.clients.find((x) => x.id === c.clientId)?.name}</p><p className="text-sm text-ink-muted">{c.ref} · {c.route?.kind === "visa" ? `${c.route.visa} team` : "whole team"} · passed by {c.route?.by}</p></div>
-                    <button type="button" className={`${btn.primary} shrink-0`} onClick={() => { d.claimCase(c.id); d.toast("You accepted this case. (Demo: not saved.)"); }}>Accept</button>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
+      <div className="mt-5 grid gap-5 xl:grid-cols-3">
+        <Panel className="xl:col-span-2"><BarChart title={`${chartNames[0]} and ${chartNames[1].toLowerCase()} · ${range.label}`} data={chart} names={chartNames as string[]} /></Panel>
+        <Panel title={leader ? "From lead to result" : "My steps"} description={range.label}>
+          <ul className="space-y-3">
+            {funnel.map((f) => (
+              <li key={f.label}>
+                <div className="flex justify-between text-sm"><span>{f.label}</span><span className="font-semibold tabular-nums">{f.n}</span></div>
+                <div className="mt-1 h-2 rounded-full bg-brand-tint" aria-hidden><div className="h-2 rounded-full bg-[#0284C7]" style={{ width: `${(f.n / max) * 100}%` }} /></div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      </div>
+
+      {d.user.role === "admin" && <div className="mt-5"><SignInsPanel range={range} /></div>}
+
+      {leader && (
+        <div className="mt-5 grid gap-5 lg:grid-cols-3">
+          <TeamCard href="/social" title="Social Media" rows={[["New leads", newLeads.length], ["Passed to Sales", toSales.length], ["Not passed yet", open.filter((c) => STAGE_OWNER[c.stage] === "social" && c.status === "active").length]]} />
+          <TeamCard href="/sales" title="Sales" rows={[["Waiting to be accepted", waitSales.length], ["Holding now", open.filter((c) => STAGE_OWNER[c.stage] === "sales" && !c.route && c.status === "active").length], ["Deals finalised", deals.length], ["Fees collected", fmtSar(fees)], ["Overdue", late.filter((c) => STAGE_OWNER[c.stage] === "sales").length]]} />
+          <TeamCard href="/case-manager" title="Case Manager" rows={[["Waiting to be accepted", waitCm.length], ["In progress", open.filter((c) => STAGE_OWNER[c.stage] === "case" && !c.route && c.status === "active").length], ["Submitted", submitted.length], ["Awaiting result", open.filter((c) => c.stage === "submitted" && c.status === "active").length], ["Problems or on hold", open.filter((c) => STAGE_OWNER[c.stage] === "case" && (openIssues(c).length || c.status === "on_hold")).length]]} />
+        </div>
+      )}
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <Panel title="Needs attention" description="Overdue first, then problems, holds and cases waiting to be accepted." flush>
+          {attention.length === 0 ? <EmptyState title="Nothing needs attention" body="Overdue, stuck or waiting cases appear here." /> : (
+            <ul className="divide-y divide-line">
+              {attention.map((c) => {
+                const issue = openIssues(c)[0];
+                return (
+                  <li key={c.id}><Link href={`/cases/${c.id}${issue || c.status === "on_hold" ? "?tab=problems" : ""}`} className="block px-5 py-3 hover:bg-brand-tint">
+                    <p className="flex flex-wrap items-center gap-2 font-medium">{name(c)} <span className="text-sm font-normal text-ink-muted">· {c.ref}</span>
+                      {overdue(c) && <Pill tone="danger">Overdue</Pill>}
+                      {c.status === "on_hold" && <Pill tone="warning">{heldByClient(c) ? "On hold by client" : "On hold"}</Pill>}
+                      {issue && <Pill tone="neutral">{ISSUE_LABEL[issue.kind]}</Pill>}
+                      {c.route && <Pill tone="warning">{waitingLabel(c)}</Pill>}
+                    </p>
+                    <p className="text-sm text-ink-muted">{stageLabel(c.stage)} · {daysSince(c.stageSince)} days in step{issue ? ` · ${issue.text}` : c.status === "on_hold" && c.endReason ? ` · ${c.endReason}` : ""}</p>
+                  </Link></li>
+                );
+              })}
+            </ul>
           )}
-
-          <Panel title="Pipeline" description="Where cases sit today, grouped by the team that owns each step.">
-            <ul className="space-y-2">
-              {stages.map((s, i) => (
-                <li key={s.id}>
-                  {(i === 0 || STAGE_OWNER[stages[i - 1].id] !== STAGE_OWNER[s.id]) && <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-ink-muted first:mt-0">{OWNER_LABEL[STAGE_OWNER[s.id]]}</p>}
-                  <Link href={`/cases?stage=${s.id}`} className="group grid grid-cols-[minmax(0,10.5rem)_1fr_2.5rem] items-center gap-3 rounded-md py-1.5 hover:bg-brand-tint">
-                    <span className="truncate text-sm font-medium group-hover:text-brand-deep">{s.label}</span>
-                    <span aria-hidden className="h-3 overflow-hidden rounded-full bg-brand-soft"><span className="block h-full rounded-full bg-brand" style={{ width: `${(s.n / maxStage) * 100}%` }} /></span>
-                    <span className="text-right text-sm font-bold tabular-nums">{s.n}</span>
-                  </Link>
-                </li>
+        </Panel>
+        <Panel title="Latest activity" description={range.label} flush>
+          {activity.length === 0 ? <EmptyState title="No activity in this period" body="Steps, handoffs and acceptances appear here." /> : (
+            <ul className="divide-y divide-line">
+              {activity.map(({ c, h }, i) => (
+                <li key={`${c.id}${i}`}><Link href={`/cases/${c.id}?tab=history`} className="block px-5 py-3 hover:bg-brand-tint">
+                  <p className="text-[0.9375rem]"><span className="font-medium">{h.actor}</span> · {h.kind === "claim" ? "accepted" : h.kind === "assign" ? "assigned" : h.from && h.from !== h.to ? `${stageLabel(h.from)} → ${stageLabel(h.to)}` : `created at ${stageLabel(h.to)}`} · {name(c)}</p>
+                  <p className="text-sm text-ink-muted">{fmtDateTime(h.at)} · {c.ref}</p>
+                </Link></li>
               ))}
             </ul>
-          </Panel>
-        </div>
-
-        <div className="space-y-6">
-          <Panel title="My to-do list" action={<Link href="/todo" className="text-sm font-semibold text-brand-deep hover:underline">Open</Link>}>
-            {myTodos.length === 0 ? <p className="text-sm text-ink-muted">Nothing on your list.</p> : (
-              <ul className="space-y-3">{myTodos.map((t) => (<li key={t.id} className="flex items-start justify-between gap-3"><span className="min-w-0 text-[0.9375rem] font-medium">{t.title}</span><span className="shrink-0 text-sm text-ink-muted">{t.due ? fmtDate(t.due) : "No date"}</span></li>))}</ul>
-            )}
-          </Panel>
-          <Panel title="Recent activity" description="Steps, handoffs and notes across your cases.">
-            <Timeline items={recentActivity(d.user, d.cases, d.clients, 6).map((a) => ({ id: a.id, title: a.text, meta: `${a.actor} · ${a.ref} · ${fmtDate(a.at)}` }))} empty="No activity yet." />
-          </Panel>
-          <Panel title="Pinned team notes">
-            {pinned.length === 0 ? <p className="text-sm text-ink-muted">No pinned notes.</p> : (
-              <ul className="space-y-4">{pinned.map((n) => (<li key={n.id}><p className="flex items-center gap-2 font-medium">{n.title} <Pill tone="info">{n.category}</Pill></p><p className="mt-1 text-sm text-ink-muted">{n.content}</p></li>))}</ul>
-            )}
-            <Link href="/notepad" className="mt-4 inline-flex min-h-11 items-center font-semibold text-brand-deep hover:underline">Open Team Notepad</Link>
-          </Panel>
-        </div>
+          )}
+        </Panel>
       </div>
-
-      {dialog && <IntakeDialog mode={dialog} onClose={() => setDialog(null)} />}
     </div>
+  );
+}
+
+function TeamCard({ href, title, rows }: { href: string; title: string; rows: [string, ReactNode][] }) {
+  return (
+    <Panel title={title} action={<Link href={href} className="text-sm font-semibold text-brand-deep hover:underline">Open {title}</Link>}>
+      <dl className="divide-y divide-line">
+        {rows.map(([k, v]) => <div key={k} className="flex justify-between gap-3 py-2 text-[0.9375rem]"><dt className="text-ink-muted">{k}</dt><dd className="font-semibold tabular-nums">{v}</dd></div>)}
+      </dl>
+    </Panel>
   );
 }

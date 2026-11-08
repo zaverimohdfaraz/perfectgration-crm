@@ -24,6 +24,43 @@ export type StageId =
 /** Who a pending handoff is addressed to. "person" assigns directly; "visa" goes to that visa team's pool; "team" goes to the whole next team. */
 export type Route = { to: "sales" | "case"; kind: "person" | "visa" | "team"; visa?: TeamId; userId?: string; by: string; at: string };
 
+/** A problem or hold recorded on a case, so it is clear why work stopped and who must act. */
+export type IssueKind = "client" | "third_party" | "authority" | "internal" | "other";
+export type Issue = { id: string; kind: IssueKind; text: string; by: string; at: string; resolvedAt?: string; resolvedBy?: string; resolution?: string };
+
+/** Team Notepad message. Only the administrator can address other people or groups; everyone else can only write to the administrator. */
+export type Message = {
+  id: string;
+  fromId: string;
+  subject: string;
+  body: string;
+  at: string;
+  /** Everyone on the team. Administrator only. */
+  toAll: boolean;
+  toUserIds: string[];
+  toTeams: WorkTeam[];
+  toDepartments: TeamId[];
+  replyToId?: string;
+  pinned: boolean;
+  readBy: string[];
+};
+
+/** A secure link a client uses to upload files for one case. Files go to private storage; only the location is kept here. */
+export type UploadLink = {
+  id: string;
+  token: string;
+  caseId: string;
+  clientId: string;
+  createdById: string;
+  createdAt: string;
+  expiresAt: string;
+  requested: string[];
+  message?: string;
+  terminatedAt?: string;
+  terminatedById?: string;
+  uploads: { docId: string; name: string; item?: string; at: string }[];
+};
+
 export type SubmissionStatus = "received" | "docs_requested" | "biometrics" | "under_review" | "returned";
 export type SubmissionEvent = { status: SubmissionStatus; note?: string; by: string; at: string };
 
@@ -39,6 +76,8 @@ export type User = {
   canAdd?: boolean;
   inactive?: boolean;
   lastSeen: string;
+  /** Live mode: last time the CRM was open for this person (it pings every minute). Used to share leads among people who are online. */
+  lastActiveAt?: string;
 };
 
 export type Client = {
@@ -76,6 +115,11 @@ export type Case = {
   submittedAt?: string;
   submissionLog?: SubmissionEvent[];
   resultNote?: string;
+  /** Problems and holds: why the case stopped, and whether it is resolved. */
+  issues: Issue[];
+  /** Ad campaign the lead came from, when known. */
+  campaign?: string;
+  dealFeeSar?: number;
   priority: Priority;
   destination: string;
   budget?: number;
@@ -97,6 +141,21 @@ export type Case = {
   notes: Note[];
   history: HistoryEntry[];
   updatedAt: string;
+  /**
+   * Live mode only. A reduced copy of a case this person worked on before handing it to the next team.
+   * It counts towards their own figures, but it is never listed or opened, and it carries nothing that happened after the handoff.
+   */
+  pastWork?: boolean;
+  /**
+   * Set when the lead was given to a Sales member automatically and they have not done anything with it yet.
+   * While set, the lead can be moved to another online member to keep everyone even. Cleared on the holder's first action.
+   */
+  autoShared?: { kind: "team" | "visa"; visa?: TeamId; at: string };
+  /** Who put the case on hold: the client asked to pause it, or the team paused it (waiting on someone else). */
+  holdBy?: "client" | "team";
+  /** When the referral agent's commission for this case was paid, and by whom (administrator only). */
+  agentPaidAt?: string;
+  agentPaidBy?: string;
 };
 
 export type Agent = {
@@ -122,6 +181,13 @@ export type Doc = {
   needsTranslation?: boolean;
   note?: string;
   fileName?: string;
+  /** Private storage key (S3). The file itself is never stored in the database. */
+  storageKey?: string;
+  size?: number;
+  contentType?: string;
+  /** Who added the file: a team member, or the client through an upload link. */
+  source?: "team" | "client_link";
+  linkId?: string;
 };
 
 export type Task = {
@@ -147,18 +213,6 @@ export type Todo = {
   caseId?: string;
 };
 
-export type TeamNote = {
-  id: string;
-  title: string;
-  content: string;
-  category: string;
-  author: string;
-  pinned: boolean;
-  updatedAt: string;
-  /** Audience. Both empty means everyone. */
-  departments: TeamId[];
-  people: string[];
-};
 
 /* ─── Reference lists ───────────────────────────────────── */
 export const STAGES: { id: StageId; label: string }[] = [
@@ -175,6 +229,14 @@ export const STAGES: { id: StageId; label: string }[] = [
   { id: "submitted", label: "Submitted" },
   { id: "outcome", label: "Result" },
 ];
+
+export const ISSUE_LABEL: Record<IssueKind, string> = {
+  client: "Waiting on the client",
+  third_party: "Waiting on a third party",
+  authority: "Waiting on the authority",
+  internal: "Internal delay",
+  other: "Other",
+};
 
 export const SUBMISSION_LABEL: Record<SubmissionStatus, string> = {
   received: "Application received by the authority",
@@ -263,7 +325,7 @@ const trail = (path: StageId[], sinceDays: number, actor: string): HistoryEntry[
 const STUDY_FULL: StageId[] = ["lead", "firstcall", "docassess", "appointment", "deal", "advance", "doccollect", "verify", "prep", "review", "submitted", "outcome"];
 
 /* ─── Cases ─────────────────────────────────────────────── */
-type SeedCase = Omit<Case, "leadById" | "salesId" | "caseManagerId" | "priority" | "destination">;
+type SeedCase = Omit<Case, "leadById" | "salesId" | "caseManagerId" | "priority" | "destination" | "issues">;
 const SEED_CASES: SeedCase[] = [
   {
     id: "cs1", ref: "PG-26-0001", clientId: "c1", visa: "study", stage: "doccollect", status: "active",
@@ -427,12 +489,20 @@ export const TASKS: Task[] = [
   { id: "tk5", title: "Request degree attestation", caseId: "cs11", partner: "University", assigneeId: "u-faisal", deadline: isoFromToday(-1), progress: 20 },
 ];
 
-export const TEAM_NOTES: TeamNote[] = [
-  { id: "tn1", title: "Document checklist: October update", content: "Bank statements must cover the last six months and show the account holder's name. Scans should be in colour, and passports need every page, including blank ones.", category: "Documents", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-6), departments: [], people: [] },
-  { id: "tn2", title: "Office hours", content: "The office runs Sunday to Thursday. Please confirm any weekend appointments with Layla before offering them to clients.", category: "Operations", author: "Layla Hassan", pinned: true, updatedAt: isoFromToday(-10), departments: [], people: [] },
-  { id: "tn3", title: "Lead handover", content: "When a social media lead is allocated, record the source and visa interest in the first few minutes so the consultant has context before the first call.", category: "Process", author: "Aun Rehman", pinned: false, updatedAt: isoFromToday(-3), departments: [], people: ["u-omar", "u-noura"] },
-  { id: "tn4", title: "Study intake deadlines", content: "Autumn intake applications close earlier than expected at several universities. Please confirm the closing date with the university before promising a timeline to the client.", category: "Reminder", author: "Aun Rehman", pinned: false, updatedAt: isoFromToday(-2), departments: ["study"], people: [] },
-  { id: "tn5", title: "Language certificates for Work and Skilled", content: "Language certificates older than two years are rejected by some authorities. Ask for a recent test result at the first call, and note the test date on the case.", category: "Documents", author: "Layla Hassan", pinned: false, updatedAt: isoFromToday(-1), departments: ["work", "skilled"], people: [] },
+/* ─── Team Notepad messages ─────────────────────────────── */
+export const MESSAGES: Message[] = [
+  { id: "m1", fromId: "u-admin", subject: "Document checklist: October update", body: "Bank statements must cover the last six months and show the account holder's name. Scans should be in colour, and passports need every page, including blank ones.", at: isoFromToday(-6), toAll: true, toUserIds: [], toTeams: [], toDepartments: [], pinned: true, readBy: ["u-admin", "u-omar"] },
+  { id: "m2", fromId: "u-admin", subject: "Office hours", body: "The office runs Sunday to Thursday. Please confirm any weekend appointments with Layla before offering them to clients.", at: isoFromToday(-10), toAll: true, toUserIds: [], toTeams: [], toDepartments: [], pinned: false, readBy: ["u-admin"] },
+  { id: "m3", fromId: "u-admin", subject: "Lead handover", body: "When you accept a lead, call within 24 hours and log the call so the next step can start.", at: isoFromToday(-3), toAll: false, toUserIds: [], toTeams: ["sales"], toDepartments: [], pinned: false, readBy: ["u-admin"] },
+  { id: "m4", fromId: "u-admin", subject: "Study intake deadlines", body: "Autumn intake applications close earlier than expected at several universities. Confirm the closing date with the university before promising a timeline to the client.", at: isoFromToday(-2), toAll: false, toUserIds: [], toTeams: [], toDepartments: ["study"], pinned: false, readBy: ["u-admin"] },
+  { id: "m5", fromId: "u-omar", subject: "Client asking for a fee discount", body: "Amina Tariq asked whether the fee can be reduced if she pays in full today. Can I offer 5%?", at: isoFromToday(-1), toAll: false, toUserIds: ["u-admin"], toTeams: [], toDepartments: [], pinned: false, readBy: ["u-omar"] },
+  { id: "m6", fromId: "u-admin", subject: "Re: Client asking for a fee discount", body: "Yes, 5% is fine for full payment today. Note it on the case.", at: isoFromToday(0), toAll: false, toUserIds: ["u-omar"], toTeams: [], toDepartments: [], replyToId: "m5", pinned: false, readBy: ["u-admin"] },
+];
+
+/* ─── Client upload links ───────────────────────────────── */
+export const UPLOAD_LINKS: UploadLink[] = [
+  { id: "ul1", token: "demo-token-active-cs1", caseId: "cs1", clientId: "c1", createdById: "u-sultan", createdAt: isoFromToday(-1), expiresAt: isoFromToday(2), requested: ["Bank statements (6 months)", "Proof of funds"], message: "Please upload clear colour scans.", uploads: [] },
+  { id: "ul2", token: "demo-token-expired-cs11", caseId: "cs11", clientId: "c3", createdById: "u-dina", createdAt: isoFromToday(-9), expiresAt: isoFromToday(-6), requested: ["Degree certificate", "Degree attestation"], uploads: [{ docId: "d8", name: "Degree certificate", item: "Degree certificate", at: isoFromToday(-8) }] },
 ];
 
 /* ─── Workflow defaults (Admin-configurable later) ──────── */
@@ -562,6 +632,13 @@ export const STAGE_OWNER: Record<StageId, StageOwner> = {
   doccollect: "case", verify: "case", prep: "case", review: "case", submitted: "case", outcome: "case",
 };
 export const OWNER_LABEL: Record<StageOwner, string> = { social: "Social Media Team", sales: "Sales Team", case: "Case Manager", leadership: "Admin / Manager" };
+/** "Waiting to be accepted in the Sales Team (Study team)": which team a waiting case is with. */
+export function waitingLabel(c: { route?: { to: StageOwner; kind: string; visa?: TeamId }; visa: TeamId }, short = false): string {
+  if (!c.route) return "";
+  const team = OWNER_LABEL[c.route.to].replace(/ Team$/, "");
+  const visa = c.route.kind === "visa" ? ` · ${VISA_TYPES.find((v) => v.id === (c.route!.visa ?? c.visa))?.label ?? ""} team` : "";
+  return short ? `Waiting · ${team}${visa}` : `Waiting to be accepted in ${team}${visa}`;
+}
 export const WORK_TEAM_LABEL: Record<WorkTeam, string> = { social: "Social Media Team", sales: "Sales Team", case: "Case Manager" };
 export const PRIORITY_LABEL: Record<Priority, string> = { normal: "Normal", high: "High", urgent: "Urgent" };
 
@@ -622,6 +699,15 @@ export const CASES: Case[] = SEED_CASES.map((c, i) => {
     qcBy: idx >= at("submitted") || c.ref === "PG-26-0005" ? "Layla Hassan" : undefined,
     submittedAt: idx >= at("submitted") ? new Date(since - DAY_MS / 2).toISOString() : undefined,
     submissionLog: idx >= at("submitted") ? [{ status: "received", by: "Dina Karim", at: new Date(since - DAY_MS / 2).toISOString() }] : undefined,
+    dealFeeSar: idx >= at("advance") ? 6000 + (i % 5) * 1000 : undefined,
+    campaign: c.leadSource === "Instagram" ? "IG Study Abroad Oct" : c.leadSource === "Facebook" ? "FB Work Permit Leads" : c.leadSource === "TikTok" ? "TikTok Visa Tips" : undefined,
+    issues: c.status === "on_hold"
+      ? [{ id: `is-${c.id}`, kind: "client", text: c.endReason ?? "Waiting for the client", by: "Omar Saleh", at: c.stageSince }]
+      : c.ref === "PG-26-0011"
+        ? [{ id: `is-${c.id}`, kind: "third_party", text: "University has not issued the degree attestation yet.", by: "Faisal Mansour", at: isoFromToday(-3) }]
+        : c.ref === "PG-26-0004"
+          ? [{ id: `is-${c.id}`, kind: "authority", text: "VFS asked for an extra bank letter.", by: "Noura Al-Qahtani", at: isoFromToday(-4), resolvedAt: isoFromToday(-2), resolvedBy: "Noura Al-Qahtani", resolution: "Bank letter sent to VFS." }]
+          : [],
   };
   // A few cases wait in a pool to show the accept flow.
   if (c.ref === "PG-26-0008") { base.salesId = ""; base.route = { to: "sales", kind: "visa", visa: c.visa, by: "Reem Al-Zahrani", at: isoFromToday(-1) }; }

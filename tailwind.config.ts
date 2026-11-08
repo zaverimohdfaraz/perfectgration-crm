@@ -22,7 +22,7 @@ const config: Config = {
         canvas: "#F4FBFE",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: ["'Inter Variable'", "system-ui", "sans-serif"],
       },
       borderRadius: {
         xl2: "1.25rem",

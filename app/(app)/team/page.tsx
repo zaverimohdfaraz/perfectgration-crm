@@ -1,15 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Plus, ShieldCheck } from "@/components/icons";
-import { PageHeader, Panel, Avatar, Button, EmptyState } from "@/components/ui";
+import { PageHeader, Panel, Avatar, Button, EmptyState, Tabs } from "@/components/ui";
+import { Kpi } from "@/components/hub";
 import { Pager } from "@/components/pagination";
 import { Pill } from "@/components/status";
 import { DEPT, DeptChip, DeptIcon, TeamChip, TeamIcon } from "@/components/department";
 import { AccessDialog, AddUserDialog } from "@/components/dialogs-admin";
 import { useDemo } from "@/lib/store";
 import { OWNER_LABEL, ROLE_LABEL, STAGE_OWNER, VISA_TYPES, type Role, type StageOwner, type TeamId, type User } from "@/lib/demo-data";
-import { fmtDate } from "@/lib/dates";
+import { TODAY, fmtDate } from "@/lib/dates";
+import { openIssues } from "@/lib/case-logic";
+import { claimable } from "@/lib/permissions";
+import { isOnline } from "@/lib/lead-share";
 import { btn, field, td, th } from "@/lib/styles";
 
 type Filter = "" | TeamId | StageOwner;
@@ -55,6 +60,27 @@ export default function TeamPage() {
   const members = d.users.filter((u) => u.role === "consultant");
   const leaders = d.users.filter((u) => u.role !== "consultant");
   const casesOf = (id: string) => d.cases.filter((c) => c.consultantId === id && c.status === "active").length;
+  const [panel, setPanel] = useState("work");
+  const monthStart = Date.UTC(TODAY.getUTCFullYear(), TODAY.getUTCMonth(), 1) - 3 * 3_600_000;
+  const overdue = (c: (typeof d.cases)[number]) => c.status === "active" && !!c.deadline && Date.parse(c.deadline) < TODAY.getTime();
+  /** What one person is carrying right now, and what they moved forward this month. */
+  const work = (u: User) => {
+    const held = d.cases.filter((c) => c.consultantId === u.id && !c.route && c.status === "active");
+    return {
+      held: held.length,
+      overdue: held.filter(overdue).length,
+      onHold: d.cases.filter((c) => c.consultantId === u.id && c.status === "on_hold").length,
+      problems: held.reduce((n, c) => n + openIssues(c).length, 0),
+      waiting: u.role === "consultant" ? claimable(u, d.cases).length : 0,
+      moved: d.cases.reduce((n, c) => n + c.history.filter((h) => h.actor === u.name && Date.parse(h.at) >= monthStart && h.from !== h.to && h.kind !== "assign").length, 0),
+      accepted: d.cases.reduce((n, c) => n + c.history.filter((h) => h.kind === "claim" && h.actor === u.name && Date.parse(h.at) >= monthStart).length, 0),
+      todos: d.todos.filter((t) => t.ownerId === u.id && !t.done).length,
+      list: held,
+    };
+  };
+  const activePeople = d.users.filter((u) => !u.inactive);
+  const pooled = d.cases.filter((c) => c.status === "active" && c.route).length;
+  const allOverdue = d.cases.filter(overdue).length;
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -77,6 +103,13 @@ export default function TeamPage() {
     <div>
       <PageHeader eyebrow="Administration" title="Team" description="Everyone with access, and the department each person works in. Team members see only their own departments."
         actions={<Button onClick={() => setAdding(true)}><Plus size={18} aria-hidden /> Add team member</Button>} />
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi label="Active people" value={activePeople.length} hint={`${d.users.length - activePeople.length} inactive`} />
+        <Kpi label="Team members" value={members.filter((u) => !u.inactive).length} hint={`${leaders.filter((u) => !u.inactive).length} admins and managers`} />
+        <Kpi label="Waiting to be accepted" value={pooled} hint="Passed to a team, nobody has accepted yet" />
+        <Kpi label="Overdue cases" value={allOverdue} hint="Past the step deadline" />
+      </div>
 
       <h2 className="mb-1 text-lg font-semibold">Teams</h2>
       <p className="mb-3 text-sm text-ink-muted">Who owns which part of a case. Responsibility moves between teams at each handoff.</p>
@@ -115,7 +148,7 @@ export default function TeamPage() {
         })}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
         <div>
           <form role="search" onSubmit={(e) => e.preventDefault()} className="mb-4 grid gap-3 rounded-xl border border-line bg-white p-4 sm:grid-cols-3">
             <div className="sm:col-span-1"><label htmlFor="tm-q" className="mb-1 block text-sm font-semibold">Search</label><input id="tm-q" className={field} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Name or email" /></div>
@@ -129,15 +162,15 @@ export default function TeamPage() {
             ) : (
               <>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[900px] text-[0.9375rem]">
+                  <table className="w-full min-w-[980px] text-[0.9375rem]">
                     <caption className="sr-only">Team members and their departments</caption>
-                    <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Person</th><th scope="col" className={th}>Team</th><th scope="col" className={th}>Department</th><th scope="col" className={th}>Role</th><th scope="col" className={th}>Active cases</th><th scope="col" className={th}>Status</th><th scope="col" className={th}><span className="sr-only">Actions</span></th></tr></thead>
+                    <thead className="border-b border-line bg-brand-tint"><tr><th scope="col" className={th}>Person</th><th scope="col" className={th}>Team</th><th scope="col" className={th}>Department</th><th scope="col" className={th}>Role</th><th scope="col" className={th}>Holding</th><th scope="col" className={th}>Overdue</th><th scope="col" className={th}>Status</th><th scope="col" className={th}><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody className="divide-y divide-line">
                       {pageRows.map((u) => (
                         <tr key={u.id} className={u.id === sel?.id ? "bg-brand-tint" : "hover:bg-brand-tint/50"}>
                           <td className={td}>
                             <button type="button" onClick={() => setSelected(u.id)} className="flex items-center gap-3 text-left" aria-label={`View access for ${u.name}`}>
-                              <Avatar name={u.name} /><span><span className="block font-semibold">{u.name}</span><span className="block text-sm text-ink-muted">{u.email}</span></span>
+                              <Avatar name={u.name} /><span><span className="block font-semibold">{u.name}{isOnline(u, TODAY.getTime(), d.settings.onlineMinutes) && <span className="ml-2 inline-flex items-center gap-1 align-middle text-xs font-semibold text-green-800"><span aria-hidden className="h-2 w-2 rounded-full bg-green-600" />Online</span>}</span><span className="block text-sm text-ink-muted">{u.email}</span></span>
                             </button>
                           </td>
                           <td className={td}>{u.role === "consultant" ? (u.workTeam ? <TeamChip team={u.workTeam} /> : <span className="text-ink-muted">Not set</span>) : <TeamChip team="leadership" />}</td>
@@ -148,6 +181,7 @@ export default function TeamPage() {
                           </td>
                           <td className={td}>{ROLE_LABEL[u.role]}</td>
                           <td className={`${td} tabular-nums`}>{u.role === "consultant" ? casesOf(u.id) : "—"}</td>
+                          <td className={`${td} tabular-nums`}>{u.role === "consultant" ? (() => { const n = work(u).overdue; return n ? <span className="font-semibold text-red-800">{n}</span> : 0; })() : "—"}</td>
                           <td className={td}><Pill tone={u.inactive ? "neutral" : "success"}>{u.inactive ? "Inactive" : "Active"}</Pill></td>
                           <td className={`${td} text-right`}><button type="button" className={`${btn.secondary} !min-h-10 text-sm`} onClick={() => setEditing(u)}>Edit access</button></td>
                         </tr>
@@ -172,6 +206,36 @@ export default function TeamPage() {
               <p className="mb-2 text-sm font-semibold text-ink-muted">Department</p>
               <div className="flex flex-wrap gap-2">{sel.role === "consultant" ? (sel.teams.length ? sel.teams.map((t) => <DeptChip key={t} team={t} large />) : <span className="text-sm text-ink-muted">No department assigned</span>) : <Pill tone="info">All departments</Pill>}</div>
             </div>
+            <Tabs tabs={[{ id: "work", label: "Work" }, { id: "access", label: "Access" }]} value={panel} onChange={setPanel} />
+            <div className="mt-4" role="tabpanel" id={`panel-${panel}`} aria-labelledby={`tab-${panel}`}>
+            {panel === "work" && (() => {
+              const w = work(sel);
+              return (
+                <div>
+                  <dl className="grid grid-cols-2 gap-3">
+                    {[
+                      ["Holding now", w.held], ["Overdue", w.overdue], ["Open problems", w.problems], ["On hold", w.onHold],
+                      ["Steps moved this month", w.moved], ["Accepted this month", w.accepted], ["Waiting for them to accept", w.waiting], ["Open to-dos", w.todos],
+                    ].map(([k, v]) => (
+                      <div key={k} className="rounded-lg border border-line p-3"><dt className="text-sm text-ink-muted">{k}</dt><dd className="mt-1 text-xl font-bold tabular-nums">{v}</dd></div>
+                    ))}
+                  </dl>
+                  <h3 className="mb-2 mt-5 text-sm font-semibold uppercase tracking-wide text-ink-muted">Cases they hold</h3>
+                  {w.list.length === 0 ? <p className="text-sm text-ink-muted">None right now.</p> : (
+                    <ul className="divide-y divide-line">
+                      {w.list.slice(0, 8).map((c) => (
+                        <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-[0.9375rem]">
+                          <Link href={`/cases/${c.id}`} className="min-w-0 truncate font-medium text-brand-deep hover:underline">{c.ref} · {d.clients.find((x) => x.id === c.clientId)?.name}</Link>
+                          {overdue(c) ? <Pill tone="danger">Overdue</Pill> : openIssues(c).length ? <Pill tone="warning">Problem</Pill> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {w.list.length > 8 && <p className="mt-2 text-sm text-ink-muted">and {w.list.length - 8} more</p>}
+                </div>
+              );
+            })()}
+            {panel === "access" && (
             <div className="space-y-5">
               {access(sel).map((g) => (
                 <div key={g.group}>
@@ -184,8 +248,17 @@ export default function TeamPage() {
                 </div>
               ))}
             </div>
+            )}
+            </div>
             <p className="mt-4 flex items-start gap-2 text-sm text-ink-muted"><ShieldCheck size={18} aria-hidden className="mt-0.5 shrink-0 text-brand-deep" /> Permissions are enforced on the server, not only in the screens.</p>
-            <div className="mt-4"><Button variant="secondary" onClick={() => setEditing(sel)}>Edit access</Button></div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setEditing(sel)}>Edit access</Button>
+              {sel.id !== d.user.id && (
+                <button type="button" className={btn.ghost} onClick={() => { d.updateUser(sel.id, { inactive: !sel.inactive }); d.toast(sel.inactive ? `${sel.name} can sign in again. (Demo: not saved.)` : `${sel.name} can no longer sign in. Their cases stay as they are. (Demo: not saved.)`); }}>
+                  {sel.inactive ? "Reactivate account" : "Deactivate account"}
+                </button>
+              )}
+            </div>
           </Panel>
         )}
       </div>

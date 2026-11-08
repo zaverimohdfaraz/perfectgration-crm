@@ -1,9 +1,11 @@
 /**
- * DEMO CLOCK. Every date in the demo is anchored to this fixed moment so the
- * review screens are stable. Phase 2 replaces TODAY with the real clock
- * (new Date()) and the server computes all day counts.
+ * The app clock. In demo mode it is fixed so the review screens are stable.
+ * In live mode it is set from the server's time on every page load (so the server and the browser
+ * show exactly the same day counts), then kept current in the browser. Use syncClock() to move it.
  */
-export const TODAY = new Date("2026-10-21T09:00:00+03:00");
+export const DEMO_MODE = process.env.NEXT_PUBLIC_DATA_MODE !== "api";
+export const TODAY = DEMO_MODE ? new Date("2026-10-21T09:00:00+03:00") : new Date();
+export const syncClock = (ms: number) => { if (!DEMO_MODE && Number.isFinite(ms)) TODAY.setTime(ms); };
 const DAY = 86_400_000;
 const TZ = "Asia/Riyadh";
 
@@ -59,3 +61,6 @@ export const fmtDateTime = (iso: string) => {
 };
 
 export const fmtSar = (n: number) => `SAR ${n.toLocaleString("en-US")}`;
+
+/** ISO time `days` after another ISO time. */
+export const plusDays = (iso: string, days: number) => new Date(Date.parse(iso) + days * DAY).toISOString();

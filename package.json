@@ -1,27 +1,45 @@
 {
   "name": "perfectgration-crm",
-  "version": "0.8.0",
+  "version": "0.11.2",
   "private": true,
-  "engines": { "node": "22.x" },
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "predev": "node scripts/clean-stale.mjs",
     "dev": "next dev",
     "dev:turbo": "next dev --turbo",
     "prebuild": "node scripts/clean-stale.mjs",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "check:setup": "tsx --env-file=.env.local scripts/check-setup.ts",
+    "test": "tsx scripts/test-logic.ts"
   },
   "dependencies": {
-    "next": "15.5.28",
+    "@aws-sdk/client-s3": "^3.1164.0",
+    "@aws-sdk/s3-request-presigner": "^3.1164.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.10.0",
+    "mongoose": "^8.24.8",
+    "next": "^15.5.29",
     "react": "~19.1.0",
-    "react-dom": "~19.1.0"
+    "react-dom": "~19.1.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.10.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "postcss": "^8.5.0",
+    "postcss": "^8.5.32",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.0"
+  },
+  "overrides": {
+    "postcss": "$postcss"
   }
 }

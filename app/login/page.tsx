@@ -8,13 +8,16 @@ const MESSAGES: Record<string, string> = {
   invalid: "That email or password is not right. Please try again.",
   inactive: "This account is inactive. Please ask your administrator.",
   expired: "Your session has ended. Please sign in again.",
+  locked: "Too many wrong passwords. The account is locked for 15 minutes. Please try again later.",
+  changed: "Your password was changed. Please sign in with your new password.",
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; email?: string }> }) {
   const sp = await searchParams;
   const error = sp.error ? MESSAGES[sp.error] : undefined;
-  const gated = Boolean(process.env.DEMO_ACCESS_CODE);
-  const showDemo = process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS !== "false";
+  const live = process.env.NEXT_PUBLIC_DATA_MODE === "api";
+  const gated = !live && Boolean(process.env.DEMO_ACCESS_CODE);
+  const showDemo = !live && process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS !== "false";
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -40,7 +43,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <p className="mt-3 text-lg text-ink-muted">Sign in with the email and password your administrator gave you.</p>
 
           {error && (
-            <div role="alert" className="mt-6 rounded-xl border border-red-300 bg-red-50 p-4 text-base text-red-900">
+            <div role="alert" className={`mt-6 rounded-xl border p-4 text-base ${sp.error === "changed" ? "border-green-300 bg-green-50 text-green-950" : "border-red-300 bg-red-50 text-red-900"}`}>
               {error}
             </div>
           )}

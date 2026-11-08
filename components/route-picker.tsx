@@ -10,9 +10,11 @@ export function RoutePicker({ to, value, onChange, defaultVisa, error }: { to: "
   const d = useDemo();
   const team = OWNER_LABEL[to];
   const people = d.users.filter((u) => u.role === "consultant" && !u.inactive && u.workTeam === to);
+  // Live mode with automatic sharing on: Sales leads are shared among the members who are online.
+  const shared = to === "sales" && d.mode === "api" && d.settings.autoShareLeads;
   const options: { id: PassTarget["kind"]; label: string; help: string }[] = [
-    { id: "team", label: `The whole ${team}`, help: "Every member sees it. The first person to accept it gets the case." },
-    { id: "visa", label: "Only one visa team (optional)", help: `Only ${team} members on that visa team see it. The first one to accept gets it.` },
+    { id: "team", label: `The whole ${team}`, help: shared ? "Shared automatically and evenly among the Sales members who are online. If nobody is online, it waits and the first to come online or accept gets it." : "Every member sees it. The first person to accept it gets the case." },
+    { id: "visa", label: "Only one visa team (optional)", help: shared ? `Shared evenly among the online ${team} members on that visa team.` : `Only ${team} members on that visa team see it. The first one to accept gets it.` },
     { id: "person", label: "A specific person (optional)", help: "Goes straight to them. No one else sees it." },
   ];
   return (
