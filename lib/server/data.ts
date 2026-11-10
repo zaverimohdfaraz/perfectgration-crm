@@ -7,6 +7,7 @@ import { pastWorkCopy, type Ctx } from "@/lib/case-logic";
 import { AgentModel, CaseModel, ClientModel, CounterModel, DocumentModel, MessageModel, SettingsModel, TaskModel, TodoModel, UploadLinkModel, UserModel } from "./models";
 import { HttpError } from "./http-error";
 import { trust } from "@/lib/server/trusted";
+import { connectDb } from "./db";
 
 /* ─── Turning stored records into the shapes the app uses ─── */
 type Raw = Record<string, unknown> & { _id: string };
@@ -103,6 +104,7 @@ export async function saveCase(before: Case, after: Case): Promise<Case> {
 
 /* ─── Everything a signed-in person starts with, filtered by what they may see ─── */
 export async function loadBootstrap(user: User): Promise<Bootstrap> {
+  await connectDb();
   const leader = user.role !== "consultant";
   const [users, settings, rawCases] = await Promise.all([allUsers(), loadSettings(), CaseModel.find().sort({ updatedAt: -1 }).lean() as Promise<(Raw & { assessment?: Assessment })[]>]);
 
