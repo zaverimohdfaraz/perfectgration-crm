@@ -18,7 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/team", label: "Team", roles: ["admin"], group: "Administration" },
   { href: "/sign-ins", label: "Sign-in record", roles: ["admin"], group: "Administration" },
   { href: "/agents", label: "Agents", roles: ["admin"], group: "Administration" },
-  { href: "/workflow", label: "Workflow Setup", roles: ["admin"], group: "Administration" },
+  // { href: "/workflow", label: "Workflow Setup", roles: ["admin"], group: "Administration" },
   { href: "/settings", label: "Settings", roles: ["admin"], group: "Administration" },
 ];
 

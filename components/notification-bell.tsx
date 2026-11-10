@@ -60,7 +60,7 @@ export function NotificationBell() {
                     <p className="text-sm text-ink-muted">{a.detail}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Link href={`/cases/${a.caseId}`} onClick={() => setOpen(false)} className={`${btn.secondary} !min-h-10 text-sm`}>Open</Link>
-                      <button type="button" onClick={() => sendReminder(a.caseId, a.client)} className={`${btn.secondary} !min-h-10 text-sm`}>Send reminder</button>
+                      {/* <button type="button" onClick={() => sendReminder(a.caseId, a.client)} className={`${btn.secondary} !min-h-10 text-sm`}>Send reminder</button> */}
                       <button type="button" onClick={() => d.dismissAlert(a.id)} className={`${btn.ghost} !min-h-10 text-sm`}>Dismiss</button>
                     </div>
                   </div>

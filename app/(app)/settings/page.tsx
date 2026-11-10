@@ -70,14 +70,14 @@ export default function SettingsPage() {
             <ul className="flex flex-wrap gap-2">{VISA_TYPES.map((v) => <li key={v.id}><DeptChip team={v.id} large /></li>)}</ul>
           </Panel>
 
-          <Panel id="email" title="Email reminders" description="Sent through EmailJS (Professional plan).">
+          {/* <Panel id="email" title="Email reminders" description="Sent through EmailJS (Professional plan).">
             <div className="flex flex-wrap items-center gap-3"><span className="text-[0.9375rem]">Status:</span><Pill tone={s.emailConnected ? "success" : "warning"}>{s.emailConnected ? "Connected" : "Not connected yet"}</Pill></div>
             <p className="mt-3 text-sm text-ink-muted">Keys live in server environment variables and are never shown in the browser.</p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" className={btn.secondary} onClick={() => { d.saveSettings({ emailConnected: true }); setS({ ...s, emailConnected: true }); d.toast(`Test email sent to ${s.email || "the company address"}. (Demo: no email was sent.)`); }}><Mail size={18} aria-hidden /> Send test email</button>
               {s.emailConnected && <button type="button" className={btn.ghost} onClick={() => { d.saveSettings({ emailConnected: false }); setS({ ...s, emailConnected: false }); d.toast("Email reminders disconnected. (Demo.)", "info"); }}>Disconnect</button>}
             </div>
-          </Panel>
+          </Panel> */}
         </div>
       </div>
     </div>
