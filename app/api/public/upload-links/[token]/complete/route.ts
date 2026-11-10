@@ -5,6 +5,7 @@ import { ALLOWED_TYPES, MAX_FILE_BYTES, deleteFile, headFile } from "@/lib/serve
 import { ClientModel, DocumentModel, UploadLinkModel } from "@/lib/server/models";
 import { newId, nowIso } from "@/lib/server/data";
 import { COMPLETE_GRACE_MS, MAX_UPLOADS_PER_LINK, findLink } from "@/lib/server/public-links";
+import { trust } from "@/lib/server/trusted";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export const POST = publicApi<{ token: string }>(async ({ req, params }) => {
   const client = (await ClientModel.findById(link.clientId).lean()) as { name?: string } | null;
   const by = `${client?.name ?? "Client"} (client upload)`;
   const file = { fileName: t.fileName, storageKey: t.key, size: head.size, contentType: head.contentType, source: "client_link", linkId: link.id, uploadedBy: by, at };
-  const waiting = t.item ? await DocumentModel.findOneAndUpdate({ caseId: link.caseId, name: t.item, status: "pending", storageKey: { $exists: false } }, { $set: { ...file, status: "received" } }, { new: true }).lean() : null;
+  const waiting = t.item ? await DocumentModel.findOneAndUpdate(trust({ caseId: link.caseId, name: t.item, status: "pending", storageKey: { $exists: false } }), { $set: { ...file, status: "received" } }, { new: true }).lean() : null;
   const docId = (waiting as { _id?: string } | null)?._id ?? newId("d");
   if (!waiting) {
     await DocumentModel.create({ _id: docId, caseId: link.caseId, name: t.item ?? t.fileName.replace(/\.[^.]+$/, "").slice(0, 160), category: "", status: "received", ...file });

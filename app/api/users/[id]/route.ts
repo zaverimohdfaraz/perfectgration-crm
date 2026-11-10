@@ -3,6 +3,7 @@ import { UserModel } from "@/lib/server/models";
 import { hashPassword } from "@/lib/server/auth";
 import { outUser } from "@/lib/server/data";
 import { userPatch } from "@/lib/server/schemas";
+import { trust } from "@/lib/server/trusted";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export const PATCH = api<{ id: string }>(async ({ req, user, params }) => {
   if (self && p.inactive) throw bad("You cannot switch off your own account.");
   if (self && p.role && p.role !== "admin") throw bad("You cannot remove your own administrator role.");
   const losingAdmin = current.role === "admin" && ((p.role && p.role !== "admin") || p.inactive);
-  if (losingAdmin && (await UserModel.countDocuments({ role: "admin", inactive: { $ne: true } })) <= 1) throw bad("There must always be at least one active administrator.");
+  if (losingAdmin && (await UserModel.countDocuments(trust({ role: "admin", inactive: { $ne: true } }))) <= 1) throw bad("There must always be at least one active administrator.");
 
   const role = p.role ?? current.role;
   const set: Record<string, unknown> = {};

@@ -7,6 +7,12 @@
  */
 import mongoose, { Schema, type Model } from "mongoose";
 
+/**
+ * Defence in depth: any query value that contains a Mongo operator (such as {"$ne": ""}) is treated as plain data,
+ * not as an instruction. Filters this code writes itself are marked trusted (see lib/server/trusted.ts).
+ */
+mongoose.set("sanitizeFilter", true);
+
 const opts = { versionKey: false, minimize: false } as const;
 const sub = { _id: false } as const;
 const S = String;

@@ -9,6 +9,7 @@ import { shareCase } from "@/lib/case-logic";
 import type { Case } from "@/lib/demo-data";
 import { CaseModel, CounterModel } from "./models";
 import { allUsers, loadSettings, outCase, saveCase } from "./data";
+import { trust } from "@/lib/server/trusted";
 
 const LOCK = "lock-lead-share";
 const LAST = "last-lead-share";
@@ -17,7 +18,7 @@ const LAST = "last-lead-share";
 async function lock(): Promise<boolean> {
   const now = Date.now();
   try {
-    const r = await CounterModel.updateOne({ _id: LOCK, seq: { $lt: now } }, { $set: { seq: now + 20_000 } }, { upsert: true });
+    const r = await CounterModel.updateOne(trust({ _id: LOCK, seq: { $lt: now } }), { $set: { seq: now + 20_000 } }, { upsert: true });
     return r.modifiedCount + r.upsertedCount > 0;
   } catch {
     return false; // the lock exists and is held (upsert hit the existing record)

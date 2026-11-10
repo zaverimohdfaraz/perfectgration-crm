@@ -20,6 +20,8 @@ import * as Z from "../lib/server/schemas";
 import * as L_share from "../lib/lead-share";
 import { byCampaign, demoAds, metaLeads } from "../lib/ads";
 import * as LG from "../lib/logins";
+import { safeCell } from "../lib/csv";
+import { ID_PATTERN } from "../lib/ids";
 import { LoginModel } from "../lib/server/models";
 
 let passed = 0;
@@ -400,6 +402,27 @@ test("sign-in record row fits its MongoDB schema", () => {
   const m = new LoginModel(doc);
   assert.equal(m.validateSync(), undefined);
   assert.deepEqual(m.toObject(), doc);
+});
+
+
+/* ─── Injection and spreadsheet safety ─── */
+test("ids in web addresses: only the id shape gets through", () => {
+  for (const ok of ["cs_3f9a1", "u-faisal", "doc_12AB", "A".repeat(64), "k7Yp0bQx_2mT-9Lz3Vw8Rn1Hs5Ja4Ep6Gd0Cf2Xb9Qm8Zt3Yr7Nk"]) assert.ok(ID_PATTERN.test(ok), ok);
+  for (const bad of ["", "a".repeat(65), "x$ne", "u.faisal", "a/b", "a%20b", "{\"$ne\":\"\"}", "a b", "ümm"]) assert.ok(!ID_PATTERN.test(bad), JSON.stringify(bad));
+});
+test("spreadsheet cells: formulas are shown as text, numbers are untouched", () => {
+  assert.equal(safeCell("=HYPERLINK(\"http://x\")"), "'=HYPERLINK(\"http://x\")");
+  assert.equal(safeCell("+1+1"), "'+1+1");
+  assert.equal(safeCell("-2"), "'-2");
+  assert.equal(safeCell("@SUM(A1)"), "'@SUM(A1)");
+  assert.equal(safeCell("\tcmd"), "'\tcmd");
+  assert.equal(safeCell("Chrome on Windows"), "Chrome on Windows");
+  assert.equal(safeCell(-5), -5);
+  assert.equal(safeCell(0), 0);
+});
+test("sign-in CSV: a crafted device name cannot run as a formula", () => {
+  const csv = LG.toCsv(USERS, [{ userId: "u-omar", day: "2026-10-21", firstAt: "2026-10-21T05:00:00.000Z", signIns: 1, activeMinutes: 1, failed: 0, device: "=cmd|' /C calc'!A0" }]);
+  assert.ok(csv.split("\n")[1].endsWith(",'=cmd|' /C calc'!A0"), csv);
 });
 
 /* ─── 4. API input checks ─── */

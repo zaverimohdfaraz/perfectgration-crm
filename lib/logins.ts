@@ -5,6 +5,7 @@
  * when the CRM was last open, roughly how long it was open, wrong-password attempts, and the device.
  */
 import { dayKey } from "./ads";
+import { safeCell } from "./csv";
 import type { User } from "./demo-data";
 
 export type LoginDay = {
@@ -107,7 +108,10 @@ export const workingDays = (days: string[]) => days.filter((d) => !isWeekend(d))
 /** CSV of the daily rows, for Excel. */
 export function toCsv(users: User[], rows: LoginDay[]): string {
   const name = (id: string) => users.find((u) => u.id === id)?.name ?? id;
-  const esc = (v: string | number) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+  const esc = (v: string | number) => {
+    const t = String(safeCell(v));
+    return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
   const head = ["Date", "Person", "First sign-in", "Last seen", "Signed out", "Sign-ins", "Minutes open", "Wrong passwords", "Device"];
   const body = [...rows].sort((a, b) => b.day.localeCompare(a.day) || name(a.userId).localeCompare(name(b.userId))).map((r) =>
     [r.day, name(r.userId), r.firstAt ? fmtClock(r.firstAt) : "", r.lastActiveAt ? fmtClock(r.lastActiveAt) : "", r.signedOutAt ? fmtClock(r.signedOutAt) : "", r.signIns, r.activeMinutes, r.failed, r.device ?? ""].map(esc).join(","));

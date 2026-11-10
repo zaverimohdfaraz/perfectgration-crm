@@ -10,6 +10,7 @@ import { readSession } from "./auth";
 import { UserModel } from "./models";
 import { outUser } from "./data";
 import { HttpError } from "./http-error";
+import { ID_PATTERN } from "@/lib/ids";
 
 export { HttpError, deny, notFound, bad } from "./http-error";
 
@@ -67,6 +68,11 @@ function failure(e: unknown): Response {
   return NextResponse.json({ error: "Something went wrong on the server. Please try again." }, { status: 500, headers });
 }
 
+/** Every value taken from the web address must have the id shape, so nothing unexpected reaches a database query. */
+function checkParams(params: Record<string, string>) {
+  for (const v of Object.values(params ?? {})) if (typeof v !== "string" || !ID_PATTERN.test(v)) throw new HttpError(404, "Not found.");
+}
+
 /** Wraps a signed-in API route: live mode only, same-site requests only, signed-in person required. */
 export function api<P = Record<string, string>>(handler: Handler<P>) {
   return async (req: NextRequest, ctx: RouteCtx): Promise<Response> => {
@@ -75,7 +81,9 @@ export function api<P = Record<string, string>>(handler: Handler<P>) {
       if (req.method !== "GET" && !sameOrigin(req)) throw new HttpError(403, "Request blocked.");
       const user = await currentUser();
       if (!user) throw new HttpError(401, "Your session has ended. Please sign in again.");
-      return respond(await handler({ req, user, params: (await ctx.params) as P }));
+      const params = (await ctx.params) as P;
+      checkParams(params as unknown as Record<string, string>);
+      return respond(await handler({ req, user, params }));
     } catch (e) {
       return failure(e);
     }
@@ -88,8 +96,10 @@ export function publicApi<P = Record<string, string>>(handler: PublicHandler<P>)
     try {
       if (!LIVE) throw new HttpError(404, "Not found.");
       if (req.method !== "GET" && !sameOrigin(req)) throw new HttpError(403, "Request blocked.");
+      const params = (await ctx.params) as P;
+      checkParams(params as unknown as Record<string, string>);
       await connectDb();
-      return respond(await handler({ req, params: (await ctx.params) as P }));
+      return respond(await handler({ req, params }));
     } catch (e) {
       return failure(e);
     }

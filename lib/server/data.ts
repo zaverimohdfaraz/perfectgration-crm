@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, type Bootstrap, type Settings } from "@/lib/bootstrap
 import { pastWorkCopy, type Ctx } from "@/lib/case-logic";
 import { AgentModel, CaseModel, ClientModel, CounterModel, DocumentModel, MessageModel, SettingsModel, TaskModel, TodoModel, UploadLinkModel, UserModel } from "./models";
 import { HttpError } from "./http-error";
+import { trust } from "@/lib/server/trusted";
 
 /* ─── Turning stored records into the shapes the app uses ─── */
 type Raw = Record<string, unknown> & { _id: string };
@@ -121,13 +122,13 @@ export async function loadBootstrap(user: User): Promise<Bootstrap> {
   const clientIds = [...new Set(visible.map((c) => c.clientId))];
 
   const [clients, docs, tasks, todos, messages, agents, links] = await Promise.all([
-    (leader ? ClientModel.find() : ClientModel.find({ _id: { $in: clientIds } })).sort({ updatedAt: -1 }).lean(),
-    (leader ? DocumentModel.find() : DocumentModel.find({ caseId: { $in: openIds } })).lean(),
-    (leader ? TaskModel.find() : TaskModel.find({ $or: [{ caseId: { $in: openIds } }, { assigneeId: user.id }] })).lean(),
+    (leader ? ClientModel.find() : ClientModel.find(trust({ _id: { $in: clientIds } }))).sort({ updatedAt: -1 }).lean(),
+    (leader ? DocumentModel.find() : DocumentModel.find(trust({ caseId: { $in: openIds } }))).lean(),
+    (leader ? TaskModel.find() : TaskModel.find(trust({ $or: [{ caseId: { $in: openIds } }, { assigneeId: user.id }] }))).lean(),
     (user.role === "admin" ? TodoModel.find() : TodoModel.find({ ownerId: user.id })).sort({ createdAt: -1 }).lean(),
     MessageModel.find().sort({ at: -1 }).limit(500).lean(),
     AgentModel.find().sort({ name: 1 }).lean(),
-    (leader ? UploadLinkModel.find() : UploadLinkModel.find({ caseId: { $in: openIds } })).sort({ createdAt: -1 }).lean(),
+    (leader ? UploadLinkModel.find() : UploadLinkModel.find(trust({ caseId: { $in: openIds } }))).sort({ createdAt: -1 }).lean(),
   ]);
 
   return {

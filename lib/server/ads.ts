@@ -9,6 +9,7 @@ import { createHmac } from "node:crypto";
  */
 import { metaLeads, type AdPlatform, type AdRow, type AdStatus } from "@/lib/ads";
 import { AdInsightModel, SettingsModel } from "./models";
+import { trust } from "@/lib/server/trusted";
 
 const list = (v: string | undefined) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -158,6 +159,6 @@ export async function adStatus(): Promise<AdStatus[]> {
 }
 
 export async function readAds(from: string, to: string): Promise<AdRow[]> {
-  const rows = (await AdInsightModel.find({ date: { $gte: from, $lte: to } }).sort({ date: 1 }).lean()) as unknown as (AdRow & { _id: string; syncedAt?: string })[];
+  const rows = (await AdInsightModel.find(trust({ date: { $gte: from, $lte: to } })).sort({ date: 1 }).lean()) as unknown as (AdRow & { _id: string; syncedAt?: string })[];
   return rows.map(({ _id, syncedAt, ...r }) => { void _id; void syncedAt; return r; });
 }

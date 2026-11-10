@@ -6,6 +6,7 @@ import "server-only";
 import { LoginModel } from "./models";
 import { dayKey } from "@/lib/ads";
 import { loginId, type LoginDay } from "@/lib/logins";
+import { trust } from "@/lib/server/trusted";
 
 /** A reported minute counts only if the previous one was at least this long ago (the screen reports once a minute). */
 const MIN_GAP_MS = 50_000;
@@ -49,7 +50,7 @@ export async function recordActivity(userId: string) {
   const _id = loginId(userId, day);
   const cutoff = new Date(now.getTime() - MIN_GAP_MS).toISOString();
   const r = await LoginModel.updateOne(
-    { _id, $or: [{ lastActiveAt: { $lt: cutoff } }, { lastActiveAt: { $exists: false } }] },
+    trust({ _id, $or: [{ lastActiveAt: { $lt: cutoff } }, { lastActiveAt: { $exists: false } }] }),
     { $set: { lastActiveAt: iso }, $inc: { activeMinutes: 1 }, $min: { firstAt: iso }, $unset: { signedOutAt: 1 } },
   );
   if (r.matchedCount === 0) {
@@ -69,7 +70,7 @@ export async function recordSignOut(userId: string) {
 
 /** Rows for a range of days (YYYY-MM-DD, inclusive). */
 export async function readLogins(from: string, to: string): Promise<LoginDay[]> {
-  const docs = (await LoginModel.find({ day: { $gte: from, $lte: to } }).lean()) as unknown as (Partial<LoginDay> & { userId: string; day: string })[];
+  const docs = (await LoginModel.find(trust({ day: { $gte: from, $lte: to } })).lean()) as unknown as (Partial<LoginDay> & { userId: string; day: string })[];
   return docs.map((d) => ({
     userId: d.userId, day: d.day,
     firstAt: d.firstAt, lastSignInAt: d.lastSignInAt, lastActiveAt: d.lastActiveAt, signedOutAt: d.signedOutAt,
