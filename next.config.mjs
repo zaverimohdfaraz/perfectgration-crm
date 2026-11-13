@@ -14,6 +14,10 @@ const nextConfig = (phase) => ({
   eslint: { ignoreDuringBuilds: true },
   // The app uses plain <img> tags, so the image optimiser is switched off. That removes an attack surface (it was the target of recent Next.js advisories).
   images: { unoptimized: true },
+  // Upload links sent out with /k/<token> (v11.7) still reach the upload page, which lives at /u/<token>.
+  async redirects() {
+    return [{ source: "/k/:token", destination: "/u/:token", permanent: true }];
+  },
   async headers() {
     return [
       {

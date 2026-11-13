@@ -354,7 +354,7 @@ export function DemoProvider({ userId, initial, children }: { userId: string; in
       save<{ link: UploadLink }>(`/api/upload-links/${id}`, "PATCH", { terminate: true }, (r) => setUploadLinks((l) => l.map((x) => (x.id === id ? r.link : x))));
     },
     // Clients get the public upload address (NEXT_PUBLIC_UPLOAD_BASE_URL, e.g. https://upload.yourdomain.com) when it is set, so the CRM address is never shown to them.
-    uploadLinkUrl: (l) => `${(process.env.NEXT_PUBLIC_UPLOAD_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "")).replace(/\/$/, "")}/k/${l.token}`,
+    uploadLinkUrl: (l) => `${(process.env.NEXT_PUBLIC_UPLOAD_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "")).replace(/\/$/, "")}/u/${l.token}`,
 
     /* ─── To-do lists and partner tasks ─── */
     addTodo: (t) => {
