@@ -14,7 +14,7 @@ const TONE: Record<Tone, string> = {
 };
 
 export function Pill({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
-  return <span className={`inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-sm font-medium ${TONE[tone]}`}>{children}</span>;
+  return <span className={`inline-flex max-w-full items-center whitespace-nowrap rounded-md px-2.5 py-1 text-sm font-medium ${TONE[tone]}`}>{children}</span>;
 }
 
 export function StageBadge({ stage }: { stage: StageId }) {

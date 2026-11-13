@@ -27,7 +27,7 @@ export { nextStageFor } from "./case-logic";
 export type ToastItem = { id: number; message: string; tone: "success" | "info" | "error" };
 
 type NewClient = { name: string; phone: string; email: string; nationality: string; country?: string; dob?: string };
-type NewCase = { clientId: string; visa: TeamId; leadSource: string; campaign?: string; priority: Priority; destination: string; budget?: number; agentId?: string; note?: string; pass?: PassTarget };
+type NewCase = { clientId: string; visa: TeamId; leadSource: string; campaign?: string; priority: Priority; destination?: string; subDestination?: string; budget?: number; agentId?: string; note?: string; pass?: PassTarget };
 type NewTodo = { title: string; notes?: string; due: string | null; priority: Priority; ownerId: string; caseId?: string };
 type NewDoc = { name: string; note?: string; needsTranslation?: boolean; file?: File };
 type NewMessage = Pick<Message, "subject" | "body" | "toAll" | "toUserIds" | "toTeams" | "toDepartments" | "replyToId">;
@@ -354,7 +354,7 @@ export function DemoProvider({ userId, initial, children }: { userId: string; in
       save<{ link: UploadLink }>(`/api/upload-links/${id}`, "PATCH", { terminate: true }, (r) => setUploadLinks((l) => l.map((x) => (x.id === id ? r.link : x))));
     },
     // Clients get the public upload address (NEXT_PUBLIC_UPLOAD_BASE_URL, e.g. https://upload.yourdomain.com) when it is set, so the CRM address is never shown to them.
-    uploadLinkUrl: (l) => `${(process.env.NEXT_PUBLIC_UPLOAD_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "")).replace(/\/$/, "")}/u/${l.token}`,
+    uploadLinkUrl: (l) => `${(process.env.NEXT_PUBLIC_UPLOAD_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "")).replace(/\/$/, "")}/k/${l.token}`,
 
     /* ─── To-do lists and partner tasks ─── */
     addTodo: (t) => {

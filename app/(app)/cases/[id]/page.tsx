@@ -15,7 +15,7 @@ import { ConfirmDialog } from "@/components/modal";
 import { AddDocumentDialog, AssessmentDialog, EditCaseDialog, EndCaseDialog, MoveStageDialog, ReturnQcDialog, SubmissionUpdateDialog, AssignDialog } from "@/components/dialogs-cases";
 import { ReportPreview } from "@/components/dialogs-admin";
 import { useDemo, nextStageFor } from "@/lib/store";
-import { ISSUE_LABEL, OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, SUBMISSION_LABEL, agentById, stageLabel, visaLabel, type Doc } from "@/lib/demo-data";
+import { ISSUE_LABEL, OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, SUBMISSION_LABEL, agentById, destinationOf, stageLabel, visaLabel, type Doc } from "@/lib/demo-data";
 import { stagePeriods } from "@/lib/accountability";
 import { canApproveQc, canClaim, canEditCase, canLogOutcome, canMoveStage, canReactivate, canReassign, canSeeCase, canSeeCommission, canSeeOutcomeOf, canViewReports, displayStatus } from "@/lib/permissions";
 import { daysBetween, fmtDate, fmtDateTime, fmtSar } from "@/lib/dates";
@@ -80,7 +80,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
       <PageHeader
         title={client?.name ?? "Case"}
-        description={`${c.ref} · ${visaLabel(c.visa)} visa · ${c.destination} · Responsible: ${c.route ? `waiting for someone in the ${OWNER_LABEL[c.route.to]} to accept` : `${consultant?.name ?? "not assigned"} (${ownerLabel})`}`}
+        description={`${c.ref} · ${visaLabel(c.visa)} visa${destinationOf(c) ? ` · ${destinationOf(c)}` : ""} · Responsible: ${c.route ? `waiting for someone in the ${OWNER_LABEL[c.route.to]} to accept` : `${consultant?.name ?? "not assigned"} (${ownerLabel})`}`}
         actions={
           <>
             {claimable && c.status === "active" && <Button onClick={() => { d.claimCase(c.id); d.toast("You accepted this case. It is now yours. (Demo: not saved.)"); }}>Accept this {c.route?.to === "sales" ? "lead" : "case"}</Button>}
@@ -197,7 +197,8 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
                 <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                   <Item label="Client" value={<Link href={`/clients/${c.clientId}`} className="font-medium text-brand-deep hover:underline">{client?.name}</Link>} />
                   <Item label="Visa type" value={visaLabel(c.visa)} />
-                  <Item label="Destination" value={c.destination} />
+                  <Item label="Destination" value={c.destination || "Not given"} />
+                  <Item label="Sub-destination" value={c.subDestination || "Not given"} />
                   <Item label="Budget" value={c.budget ? fmtSar(c.budget) : "Not given"} />
                   <Item label="Phone" value={client?.phone || "—"} />
                   <Item label="Email" value={client?.email || "—"} />
@@ -267,7 +268,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             {c.visa === "visit" && <p className="mb-4 text-sm text-ink-muted">Document assessment is skipped for Visit visas in the configured workflow.</p>}
             {assessment ? (
               <div className="space-y-5">
-                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-950">Illustrative demo rules only. Real eligibility rules have not been supplied, so this is not an official decision.</p>
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-950">Provisional rules until the official eligibility rules are supplied, so this is not an official decision.</p>
                 {assessment.indicative && <p className="text-[0.9375rem]">Indicative result: <Pill tone={assessment.indicative === "Strong" ? "success" : assessment.indicative === "Moderate" ? "info" : "warning"}>{assessment.indicative}</Pill></p>}
                 <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">{assessment.inputs.map((i) => <Item key={i.label} label={i.label} value={i.value} />)}</dl>
                 <div><h3 className="font-semibold">Missing information</h3>{assessment.missing.length ? <ul className="mt-2 list-disc space-y-1 pl-5 text-[0.9375rem]">{assessment.missing.map((m) => <li key={m}>{m}</li>)}</ul> : <p className="mt-1 text-sm text-ink-muted">Nothing missing.</p>}</div>
@@ -348,7 +349,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           <h3 className="mb-1 font-bold">Profile</h3>
           <p>{client?.name} · {client?.nationality} · {client?.phone} · {client?.email}</p>
           <h3 className="mb-1 mt-4 font-bold">Case</h3>
-          <p>Stage: {stageLabel(c.stage)} ({ownerLabel}) · Responsible: {consultant?.name} · Destination: {c.destination} · Deadline: {fmtDate(c.deadline)}</p>
+          <p>Stage: {stageLabel(c.stage)} ({ownerLabel}) · Responsible: {consultant?.name} · Destination: {destinationOf(c) || "not given"} · Deadline: {fmtDate(c.deadline)}</p>
           {assessment && (<><h3 className="mb-1 mt-4 font-bold">Eligibility assessment (illustrative)</h3><p>{assessment.inputs.map((i) => `${i.label}: ${i.value}`).join(" · ")}</p></>)}
           <h3 className="mb-1 mt-4 font-bold">Audit trail</h3>
           <table className="w-full border-collapse text-left"><thead><tr><th className="border-b p-1">Stage</th><th className="border-b p-1">Handler</th><th className="border-b p-1">Date</th><th className="border-b p-1">Handoff</th></tr></thead><tbody>{c.history.map((h, i) => <tr key={i}><td className="border-b p-1">{stageLabel(h.to)}</td><td className="border-b p-1">{h.actor}</td><td className="border-b p-1">{fmtDate(h.at)}</td><td className="border-b p-1">{h.handoff ?? ""}</td></tr>)}</tbody></table>

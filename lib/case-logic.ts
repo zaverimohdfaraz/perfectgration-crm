@@ -13,7 +13,7 @@ export const isFail = (x: unknown): x is Fail => typeof x === "object" && x !== 
 
 export type PassTarget = { kind: Route["kind"]; visa?: TeamId; userId?: string };
 export type OutcomeResult = "approved" | "refused" | "returned" | "withdrawn";
-export type NewCaseInput = { id: string; ref: string; clientId: string; visa: TeamId; leadSource: string; campaign?: string; priority: Priority; destination: string; budget?: number; agentId?: string; note?: string; pass?: PassTarget };
+export type NewCaseInput = { id: string; ref: string; clientId: string; visa: TeamId; leadSource: string; campaign?: string; priority: Priority; destination?: string; subDestination?: string; budget?: number; agentId?: string; note?: string; pass?: PassTarget };
 
 export function nextStageFor(c: Pick<Case, "stage" | "visa">): StageId | null {
   let i = STAGES.findIndex((s) => s.id === c.stage) + 1;
@@ -33,13 +33,17 @@ export function createCase(x: Ctx, i: NewCaseInput): Case | Fail {
   const g = STAGE_GUIDE.lead;
   let c: Case = {
     id: i.id, ref: i.ref, clientId: i.clientId, visa: i.visa, stage: "lead", status: "active",
-    consultantId: u.id, leadById: u.id, salesId: "", caseManagerId: "", priority: i.priority, destination: i.destination, budget: i.budget,
+    consultantId: u.id, leadById: u.id, salesId: "", caseManagerId: "", priority: i.priority, destination: i.destination ?? "", subDestination: i.subDestination || undefined, budget: i.budget,
     campaign: i.campaign || undefined, stageSince: x.at, deadline: plusDays(x.at, x.sla.lead), leadSource: i.leadSource, agentId: i.agentId || undefined,
     commissionSar: null, waitingFor: g.waitingFor, nextAction: g.nextAction, issues: [],
     notes: i.note ? [note(x, i.note)] : [], history: [{ from: null, to: "lead", actor: u.name, at: x.at, kind: "stage" }], updatedAt: x.at,
   };
-  if (i.pass) {
-    const passed = passCase(c, x, i.pass);
+  // A lead made by the Social Media team always goes to the Sales Team (it is never kept in Social Media).
+  // It goes to the whole Sales Team (or one visa team), never to one named person.
+  const social = u.role === "consultant" && u.workTeam === "social";
+  const pass = social ? (i.pass && i.pass.kind !== "person" ? i.pass : { kind: "team" as const }) : i.pass;
+  if (pass) {
+    const passed = passCase(c, x, pass);
     if (isFail(passed)) return passed;
     c = passed;
   }
@@ -246,13 +250,14 @@ export function resolveIssue(c: Case, x: Ctx, issueId: string, resolution?: stri
 }
 
 /* ─── Simple field edits ────────────────────────────────── */
-export type CaseEdit = Partial<Pick<Case, "deadline" | "nextAction" | "waitingFor" | "priority" | "leadSource" | "agentId" | "campaign" | "budget" | "destination">>;
+export type CaseEdit = Partial<Pick<Case, "deadline" | "nextAction" | "waitingFor" | "priority" | "leadSource" | "agentId" | "campaign" | "budget" | "destination" | "subDestination" | "visa">>;
 export function editCase(c: Case, x: Ctx, patch: CaseEdit): Case | Fail {
   c = mine(c, x);
   if (!canEditCase(x.user, c)) return { error: "Only the person who holds this case can edit it." };
   const clean: CaseEdit = { ...patch };
   delete clean.agentId; // agents are linked with linkAgent (administrator only)
-  return { ...c, ...clean, updatedAt: x.at };
+  const notes = clean.visa && clean.visa !== c.visa ? [...c.notes, note(x, `Visa type changed from ${visaLabel(c.visa)} to ${visaLabel(clean.visa)}`)] : c.notes;
+  return { ...c, ...clean, notes, updatedAt: x.at };
 }
 
 /* ─── Referral agents (administrator only) ─── */

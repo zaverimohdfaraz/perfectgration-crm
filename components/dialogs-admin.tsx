@@ -106,7 +106,7 @@ export function AddUserDialog({ onClose }: { onClose: () => void }) {
           <div><dt className="text-sm text-ink-muted">Email</dt><dd className="font-semibold">{created.email}</dd></div>
           <div><dt className="text-sm text-ink-muted">Temporary password</dt><dd className="font-mono text-lg font-bold">{created.pw}</dd></div>
         </dl>
-        <p className="mt-3 text-sm text-ink-muted">Demo only: no account is really created.</p>
+        {d.mode === "demo" && <p className="mt-3 text-sm text-ink-muted">Sample only: no account is really created.</p>}
         <ModalActions><button type="button" className={btn.primary} onClick={onClose}>Done</button></ModalActions>
       </Modal>
     );
@@ -160,7 +160,7 @@ export function AccessDialog({ user, onClose }: { user: User; onClose: () => voi
         </ul>
         <div>
           <button type="button" className={btn.secondary} onClick={() => setPw(d.resetPassword(user.id))}>Reset password</button>
-          {pw && <p className="mt-2 text-sm">New temporary password: <span className="font-mono font-bold">{pw}</span> <span className="text-ink-muted">(demo)</span></p>}
+          {pw && <p className="mt-2 text-sm">New temporary password: <span className="font-mono font-bold">{pw}</span></p>}
         </div>
       </div>
       <ModalActions>
@@ -241,7 +241,7 @@ export function ReportPreview({ title, subtitle, onClose, children }: { title: s
           <div className="text-right"><p className="text-lg font-bold">{title}</p><p className="text-ink-muted">{subtitle}</p></div>
         </div>
         {children}
-        <p className="mt-6 text-xs text-ink-muted">Confidential. Contains personal information. Preview generated from demo data.</p>
+        <p className="mt-6 text-xs text-ink-muted">Confidential. Contains personal information.</p>
       </div>
       <ModalActions>
         <button type="button" className={btn.secondary} onClick={onClose}>Close</button>

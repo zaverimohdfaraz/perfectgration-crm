@@ -8,8 +8,8 @@ import { Field } from "./form";
 import { btn, field, area } from "@/lib/styles";
 import { useDemo, nextStageFor, type OutcomeResult, type PassTarget } from "@/lib/store";
 import { RoutePicker } from "./route-picker";
-import { ISSUE_LABEL, type IssueKind, DESTINATIONS, LEAD_SOURCES, OWNER_LABEL, PRIORITY_LABEL, STAGE_OWNER, SUBMISSION_LABEL, VISA_TYPES, stageLabel, userById, type Case, type CaseStatus, type Priority, type StageId, type SubmissionStatus, type TeamId } from "@/lib/demo-data";
-import { canLogOutcome } from "@/lib/permissions";
+import { ISSUE_LABEL, type IssueKind, LEAD_SOURCES, OWNER_LABEL, PRIORITY_LABEL, STAGE_OWNER, SUBMISSION_LABEL, VISA_TYPES, stageLabel, userById, type Case, type CaseStatus, type Priority, type StageId, type SubmissionStatus, type TeamId } from "@/lib/demo-data";
+import { canEditCase, canLogOutcome } from "@/lib/permissions";
 import { fmtDate, isoFromToday } from "@/lib/dates";
 import { NATIONALITIES, digits, fromDateInput, toDateInput } from "@/lib/forms";
 
@@ -27,12 +27,15 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
   const [nationality, setNationality] = useState("Saudi");
   const [alsoCase, setAlsoCase] = useState(true);
   const [visa, setVisa] = useState<TeamId>(visaOptions[0]?.id ?? "study");
-  const [destination, setDestination] = useState(DESTINATIONS[0]);
+  const [destination, setDestination] = useState("");
+  const [subDestination, setSubDestination] = useState("");
   const [budget, setBudget] = useState("");
   const [source, setSource] = useState("Instagram");
   const [campaign, setCampaign] = useState("");
   const [priority, setPriority] = useState<Priority>("normal");
+  const socialLead = d.user.role === "consultant" && d.user.workTeam === "social";
   const [passNow, setPassNow] = useState(true);
+  const goesToSales = socialLead || passNow;
   const [target, setTarget] = useState<PassTarget>({ kind: "team" });
   const [agentId, setAgentId] = useState("");
   const [note, setNote] = useState("");
@@ -50,7 +53,7 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
       if (!phone.trim() && !email.trim()) e.phone = "Enter a phone number or an email address.";
       if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) e.email = "That email address does not look right.";
     } else if (!clientId) e.client = "Choose a client.";
-    if (needCase && passNow && route.kind === "person" && !route.userId) e.sales = "Choose who receives this lead.";
+    if (needCase && goesToSales && !socialLead && route.kind === "person" && !route.userId) e.sales = "Choose who receives this lead.";
     setErrors(e);
     if (Object.keys(e).length) return;
 
@@ -61,8 +64,8 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
 
     const client = useNewClient ? d.addClient({ name, phone, email, nationality }) : d.clients.find((c) => c.id === clientId)!;
     if (needCase) {
-      const created = d.addCase({ clientId: client.id, visa, leadSource: source, campaign: campaign.trim() || undefined, pass: passNow ? route : undefined, priority, destination, budget: budget ? Number(budget) : undefined, agentId: agentId || undefined, note: note.trim() || undefined });
-      d.toast(passNow ? `${client.name} is saved as ${created.ref} and passed to the Sales Team. (Demo: not saved.)` : `${client.name} is saved as lead ${created.ref}. Pass it to Sales when it is ready. (Demo: not saved.)`);
+      const created = d.addCase({ clientId: client.id, visa, leadSource: source, campaign: campaign.trim() || undefined, pass: goesToSales ? (socialLead ? { kind: "team" } : route) : undefined, priority, destination: destination.trim(), subDestination: subDestination.trim() || undefined, budget: budget ? Number(budget) : undefined, agentId: agentId || undefined, note: note.trim() || undefined });
+      d.toast(goesToSales ? `${client.name} is saved as ${created.ref} and passed to the Sales Team.` : `${client.name} is saved as lead ${created.ref}. Pass it to Sales when it is ready.`);
       onClose();
       router.push(`/cases/${created.id}`);
     } else {
@@ -122,7 +125,8 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
           <div className="grid gap-4 border-t border-line pt-5 sm:grid-cols-2">
             <p className="text-sm font-semibold sm:col-span-2">Qualify interest</p>
             <Field label="Visa type" htmlFor="ic-visa"><select id="ic-visa" className={field} value={visa} onChange={(e) => { setVisa(e.target.value as TeamId); }}>{visaOptions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></Field>
-            <Field label="Destination" htmlFor="ic-dest"><select id="ic-dest" className={field} value={destination} onChange={(e) => setDestination(e.target.value)}>{DESTINATIONS.map((x) => <option key={x}>{x}</option>)}</select></Field>
+            <Field label="Destination (optional)" htmlFor="ic-dest" hint="Country. Leave empty if not known yet."><input id="ic-dest" className={field} value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="e.g. Canada" maxLength={80} /></Field>
+            <Field label="Sub-destination (optional)" htmlFor="ic-subdest" hint="City, province or university."><input id="ic-subdest" className={field} value={subDestination} onChange={(e) => setSubDestination(e.target.value)} placeholder="e.g. Toronto, Ontario" maxLength={80} /></Field>
             <Field label="Budget (SAR)" htmlFor="ic-budget" hint="Optional"><input id="ic-budget" type="number" min="0" className={field} value={budget} onChange={(e) => setBudget(e.target.value)} /></Field>
             <Field label="Lead source" htmlFor="ic-src"><select id="ic-src" className={field} value={source} onChange={(e) => setSource(e.target.value)}>{LEAD_SOURCES.map((x) => <option key={x}>{x}</option>)}</select></Field>
             <Field label="Ad campaign" htmlFor="ic-camp" hint="Optional. Type it exactly as in Meta or Google Ads so the lead is matched to the ad results."><input id="ic-camp" list="ic-camp-list" className={field} value={campaign} maxLength={120} onChange={(e) => setCampaign(e.target.value)} placeholder="Use the exact ad campaign name" /><datalist id="ic-camp-list">{[...new Set(d.cases.map((c) => c.campaign).filter(Boolean))].slice(0, 50).map((x) => <option key={x} value={x} />)}</datalist></Field>
@@ -130,16 +134,18 @@ export function IntakeDialog({ mode, presetClientId, onClose }: { mode: "client"
             <Field label="Referral agent" htmlFor="ic-agent" hint="Optional"><select id="ic-agent" className={field} value={agentId} onChange={(e) => setAgentId(e.target.value)}><option value="">Direct enquiry</option>{d.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
             <div className="sm:col-span-2"><Field label="First note" htmlFor="ic-note" hint="Optional. Internal only."><textarea id="ic-note" className={area} value={note} onChange={(e) => setNote(e.target.value)} /></Field></div>
             <div className="space-y-3 border-t border-line pt-4 sm:col-span-2">
-              <label className="flex min-h-11 items-center gap-3 text-[0.9375rem] font-medium"><input type="checkbox" checked={passNow} onChange={(e) => setPassNow(e.target.checked)} className="h-5 w-5 accent-[#009FE3]" /> Everything is complete: pass to the Sales Team now</label>
-              {passNow && <RoutePicker to="sales" value={route} onChange={setTarget} defaultVisa={visa} error={errors.sales} />}
-              {!passNow && <p className="text-sm text-ink-muted">The lead stays with you. Open it later and use Pass to Sales.</p>}
+              {socialLead
+                ? <p className="text-sm font-medium text-ink">Every new lead goes straight to the Sales Team.</p>
+                : <label className="flex min-h-11 items-center gap-3 text-[0.9375rem] font-medium"><input type="checkbox" checked={passNow} onChange={(e) => setPassNow(e.target.checked)} className="h-5 w-5 accent-[#009FE3]" /> Everything is complete: pass to the Sales Team now</label>}
+              {goesToSales && !socialLead && <RoutePicker to="sales" value={route} onChange={setTarget} defaultVisa={visa} error={errors.sales} />}
+              {!goesToSales && <p className="text-sm text-ink-muted">The lead stays with you. Open it later and use Pass to Sales.</p>}
             </div>
           </div>
         )}
 
         <ModalActions>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
-          <button type="submit" className={btn.primary}>{needCase ? (passNow ? "Save and pass to Sales" : "Save lead") : "Add client"}</button>
+          <button type="submit" className={btn.primary}>{needCase ? (goesToSales ? "Save and pass to Sales" : "Save lead") : "Add client"}</button>
         </ModalActions>
       </form>
     </Modal>
@@ -472,6 +478,10 @@ export function EditCaseDialog({ c, onClose }: { c: Case; onClose: () => void })
   const [priority, setPriority] = useState<Priority>(c.priority);
   const [source, setSource] = useState(c.leadSource);
   const [agentId, setAgentId] = useState(c.agentId ?? "");
+  const [visaType, setVisaType] = useState<TeamId>(c.visa);
+  const [destination, setDestination] = useState(c.destination);
+  const [subDestination, setSubDestination] = useState(c.subDestination ?? "");
+  const canChangeDetails = admin || canEditCase(d.user, c);
   const pool = (team: "social" | "sales" | "case") => d.users.filter((u) => u.role === "consultant" && !u.inactive && u.workTeam === team);
   const opts = (team: "social" | "sales" | "case", cur: string) => (
     <>
@@ -482,7 +492,11 @@ export function EditCaseDialog({ c, onClose }: { c: Case; onClose: () => void })
   );
 
   const save = () => {
-    d.updateCase(c.id, { deadline: deadline ? fromDateInput(deadline) : null, nextAction, waitingFor, priority, leadSource: source });
+    d.updateCase(c.id, {
+      deadline: deadline ? fromDateInput(deadline) : null, nextAction, waitingFor, priority, leadSource: source,
+      destination: destination.trim(), subDestination: subDestination.trim() || undefined,
+      ...(canChangeDetails && visaType !== c.visa ? { visa: visaType } : {}),
+    });
     if (admin) {
       if ((agentId || null) !== (c.agentId ?? null)) d.linkAgent(c.id, agentId || null);
       if (leadId && leadId !== c.leadById) d.assignCase(c.id, "social", leadId);
@@ -498,6 +512,9 @@ export function EditCaseDialog({ c, onClose }: { c: Case; onClose: () => void })
       <form onSubmit={(ev) => { ev.preventDefault(); save(); }} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Deadline" htmlFor="ec-dl"><input id="ec-dl" type="date" className={field} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></Field>
+          <Field label="Visa type" htmlFor="ec-visa" hint={canChangeDetails ? "Changing this moves the case to the steps for that visa." : "Only the person holding this case can change it"}><select id="ec-visa" className={field} value={visaType} disabled={!canChangeDetails} onChange={(e) => setVisaType(e.target.value as TeamId)}>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></Field>
+          <Field label="Destination (optional)" htmlFor="ec-dest"><input id="ec-dest" className={field} value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="e.g. Canada" maxLength={80} /></Field>
+          <Field label="Sub-destination (optional)" htmlFor="ec-subdest"><input id="ec-subdest" className={field} value={subDestination} onChange={(e) => setSubDestination(e.target.value)} placeholder="e.g. Toronto, Ontario" maxLength={80} /></Field>
           <Field label="Priority" htmlFor="ec-prio"><select id="ec-prio" className={field} value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}</select></Field>
           <Field label="Lead captured by (Social Media)" htmlFor="ec-lead" hint={admin ? undefined : "Only an administrator can reassign"}><select id="ec-lead" className={field} value={leadId} disabled={!admin} onChange={(e) => setLeadId(e.target.value)}>{opts("social", leadId)}</select></Field>
           <Field label="Sales team member" htmlFor="ec-sales" hint={admin ? "The administrator can change this at any time." : "Only an administrator can reassign"}><select id="ec-sales" className={field} value={salesId} disabled={!admin} onChange={(e) => setSalesId(e.target.value)}>{opts("sales", salesId)}</select></Field>
@@ -544,14 +561,14 @@ export function AssessmentDialog({ c, onClose }: { c: Case; onClose: () => void 
         { label: "Education", value: edu }, { label: "Field of study", value: fieldOfStudy || "Not given" }, { label: "Work experience", value: exp },
         { label: "English level", value: eng }, { label: "German level", value: ger }, { label: "Publications", value: pubs }, { label: "STEM field", value: stem ? "Yes" : "No" },
       ],
-      missing, ruleVersion: "demo-v0 (illustrative)", assessedBy: d.user.name, assessedAt: isoFromToday(0), indicative,
+      missing, ruleVersion: "provisional-v0", assessedBy: d.user.name, assessedAt: isoFromToday(0), indicative,
     });
     d.toast("Assessment saved. (Demo: not saved.)");
     onClose();
   };
 
   return (
-    <Modal title="Eligibility assessment" description="Illustrative demo rules only. This is not an official eligibility decision." onClose={onClose} size="lg">
+    <Modal title="Eligibility assessment" description="Provisional rules until the official eligibility rules are supplied. This is not an official eligibility decision." onClose={onClose} size="lg">
       <form onSubmit={(ev) => { ev.preventDefault(); save(); }} className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Highest education" htmlFor="as-edu"><select id="as-edu" className={field} value={edu} onChange={(e) => setEdu(e.target.value)}>{EDU.map((o) => <option key={o}>{o}</option>)}</select></Field>

@@ -96,6 +96,7 @@ const CaseSchema = schema({
   dealFeeSar: optNum,
   priority: { type: S, default: "normal" },
   destination: { type: S, default: "" },
+  subDestination: optStr,
   budget: optNum,
   appointmentAt: optStr,
   agreementSigned: optBool,
@@ -118,6 +119,8 @@ const CaseSchema = schema({
   /** The eligibility (document) assessment, when one has been done. */
   assessment: { type: Schema.Types.Mixed, default: undefined },
   autoShared: { type: AutoSharedSchema, default: undefined },
+  /** The platform lead id, for example "meta:123" or "google:abc". Stops the same lead being added twice. */
+  externalId: optStr,
   holdBy: S,
   agentPaidAt: S,
   agentPaidBy: S,
@@ -125,6 +128,7 @@ const CaseSchema = schema({
 });
 CaseSchema.index({ consultantId: 1, status: 1 });
 CaseSchema.index({ updatedAt: -1 });
+CaseSchema.index({ externalId: 1 }, { sparse: true });
 
 /* 4. documents: details of each document. The file itself lives in S3 under `storageKey`. */
 const DocumentSchema = schema({

@@ -114,7 +114,7 @@ export default function WorkflowPage() {
           </ul>
         </Panel>
       </div>
-      <div className="mt-6"><DemoNote>Try it: change a deadline or handler above, save, then move a case to that stage. The new deadline and handler are applied.</DemoNote></div>
+      <div className="mt-6"><DemoNote>Change a deadline or handler above and save. The new deadline and handler apply when cases move to that stage.</DemoNote></div>
       {tpl && <TemplateDialog t={tpl} onClose={() => setTpl(null)} />}
     </div>
   );

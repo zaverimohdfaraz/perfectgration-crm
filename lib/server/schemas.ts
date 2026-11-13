@@ -27,13 +27,14 @@ export const clientPatch = clientFields.partial().strict();
 
 /* Cases */
 export const newCase = z.object({
-  id, clientId: id, visa, leadSource: reqText(60), campaign: text(120).optional(), priority, destination: text(80),
+  id, clientId: id, visa, leadSource: reqText(60), campaign: text(120).optional(), priority, destination: text(80).optional(), subDestination: text(80).optional(),
   budget: money.optional(), agentId: id.optional(), note: text(2000).optional(), pass: passTarget.optional(),
 });
 
 export const caseEdit = z.object({
   deadline: iso.nullable().optional(), nextAction: text(300).optional(), waitingFor: text(300).optional(), priority: priority.optional(),
   leadSource: text(60).optional(), agentId: id.optional(), campaign: text(120).optional(), budget: money.optional(), destination: text(80).optional(),
+  subDestination: text(80).optional(), visa: visa.optional(),
 }).strict();
 
 export const caseAction = z.discriminatedUnion("type", [

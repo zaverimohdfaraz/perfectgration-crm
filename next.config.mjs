@@ -1,8 +1,12 @@
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+/** @type {(phase: string) => import('next').NextConfig} */
+const nextConfig = (phase) => ({
+  // `next dev` writes to its own folder so running `npm run build` never breaks a running dev server
+  // ("Cannot find module .next/server/app/page.js"). Production builds (and Vercel) still use .next.
+  distDir: phase === PHASE_DEVELOPMENT_SERVER ? ".next-dev" : ".next",
   reactStrictMode: true,
   poweredByHeader: false,
   // Pin the workspace root to this project; a stray lockfile in the home folder otherwise makes Next guess wrong.
@@ -24,5 +28,5 @@ const nextConfig = {
       },
     ];
   },
-};
+});
 export default nextConfig;

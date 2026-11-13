@@ -8,7 +8,7 @@ import { Pager } from "@/components/pagination";
 import { DaysBadge, DeadlineBadge, Pill, StageBadge, StatusBadge, VisaBadge } from "@/components/status";
 import { IntakeDialog } from "@/components/dialogs-cases";
 import { useDemo } from "@/lib/store";
-import { waitingLabel, OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, STATUS_LABEL, VISA_TYPES, LEAD_SOURCES, stageNumber, userById, visaLabel, type CaseStatus } from "@/lib/demo-data";
+import { waitingLabel, OWNER_LABEL, PRIORITY_LABEL, STAGES, STAGE_OWNER, STATUS_LABEL, VISA_TYPES, LEAD_SOURCES, destinationOf, stageNumber, userById, visaLabel, type CaseStatus } from "@/lib/demo-data";
 import { canAddCases, displayStatus } from "@/lib/permissions";
 import { daysBetween, deadlineState } from "@/lib/dates";
 import { btn, field, td, th } from "@/lib/styles";
@@ -36,7 +36,7 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return d.visible.filter((c) => {
-      if (needle && ![clientName(c.clientId), c.ref, visaLabel(c.visa), userById(c.consultantId)?.name ?? ""].join(" ").toLowerCase().includes(needle)) return false;
+      if (needle && ![clientName(c.clientId), c.ref, visaLabel(c.visa), destinationOf(c), userById(c.consultantId)?.name ?? ""].join(" ").toLowerCase().includes(needle)) return false;
       if (stage && c.stage !== stage) return false;
       if (visa && c.visa !== visa) return false;
       if (status && c.status !== status) return false;
@@ -120,7 +120,7 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
         ) : (
           <>
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[960px] text-[0.9375rem]">
+              <table className="w-full min-w-[860px] text-[0.9375rem]">
                 <caption className="sr-only">Cases</caption>
                 <thead className="border-b border-line bg-brand-tint">
                   <tr>
@@ -129,24 +129,33 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
                     <th scope="col" className={th} aria-sort={ariaSort("stage")}><SortBtn k="stage">Step</SortBtn></th>
                     <th scope="col" className={th}>Responsible</th>
                     <th scope="col" className={th}>Status</th>
-                    <th scope="col" className={th} aria-sort={ariaSort("days")}><SortBtn k="days">Time in stage</SortBtn></th>
-                    <th scope="col" className={th} aria-sort={ariaSort("deadline")}><SortBtn k="deadline">Deadline</SortBtn></th>
-                    <th scope="col" className={th}><span className="sr-only">Open</span></th>
+                    <th scope="col" className={th} aria-sort={ariaSort("deadline")}><SortBtn k="deadline">Time and deadline</SortBtn></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
                   {rows.map((c) => {
                     const st = displayStatus(d.user, c);
+                    const dest = destinationOf(c);
                     return (
-                      <tr key={c.id} className="hover:bg-brand-tint/50">
-                        <td className={td}><Link href={`/cases/${c.id}`} className="font-semibold hover:text-brand-deep hover:underline">{clientName(c.clientId)}</Link><p className="text-sm text-ink-muted">{c.ref}</p>{c.priority !== "normal" && <span className="mt-1 inline-block"><Pill tone={c.priority === "urgent" ? "danger" : "warning"}>{PRIORITY_LABEL[c.priority]} priority</Pill></span>}</td>
+                      <tr key={c.id} className="transition-colors hover:bg-brand-tint/60">
+                        <td className={td}>
+                          <Link href={`/cases/${c.id}`} className="text-base font-semibold text-ink hover:text-brand-deep hover:underline">{clientName(c.clientId)}</Link>
+                          <p className="mt-0.5 text-sm text-ink-muted">{c.ref}{dest && <> · {dest}</>}</p>
+                          {c.priority !== "normal" && <span className="mt-1.5 inline-block"><Pill tone={c.priority === "urgent" ? "danger" : "warning"}>{PRIORITY_LABEL[c.priority]} priority</Pill></span>}
+                        </td>
                         <td className={td}><VisaBadge visa={c.visa} /></td>
                         <td className={td}><StageBadge stage={c.stage} /></td>
-                        <td className={td}><p>{c.route ? <Pill tone="warning">{waitingLabel(c)}</Pill> : (d.users.find((u) => u.id === c.consultantId)?.name ?? "Not assigned")}</p><p className="text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}</p></td>
+                        <td className={td}>
+                          {c.route ? <Pill tone="warning">{waitingLabel(c)}</Pill> : <p className="font-medium text-ink">{d.users.find((u) => u.id === c.consultantId)?.name ?? "Not assigned"}</p>}
+                          <p className="mt-0.5 text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}</p>
+                        </td>
                         <td className={td}><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></td>
-                        <td className={td}><DaysBadge days={daysBetween(c.stageSince)} /></td>
-                        <td className={td}><DeadlineBadge iso={c.deadline} /></td>
-                        <td className={`${td} text-right`}><Link href={`/cases/${c.id}`} className={`${btn.ghost} !min-h-9`}>View</Link></td>
+                        <td className={td}>
+                          <div className="flex flex-col items-start gap-2">
+                            <DaysBadge days={daysBetween(c.stageSince)} />
+                            <DeadlineBadge iso={c.deadline} />
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -160,7 +169,7 @@ export default function CasesPage({ searchParams }: { searchParams: Promise<SP> 
                 return (
                   <li key={c.id}>
                     <Link href={`/cases/${c.id}`} className="block space-y-2.5 p-4 hover:bg-brand-tint/50">
-                      <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{clientName(c.clientId)}</p><p className="text-sm text-ink-muted">{c.ref} · {visaLabel(c.visa)}</p></div><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></div>
+                      <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{clientName(c.clientId)}</p><p className="text-sm text-ink-muted">{c.ref} · {visaLabel(c.visa)}{destinationOf(c) && <> · {destinationOf(c)}</>}</p></div><StatusBadge status={c.status} label={st.label} restricted={st.restricted} /></div>
                       <div className="flex flex-wrap gap-2"><StageBadge stage={c.stage} /><DaysBadge days={daysBetween(c.stageSince)} />{c.route && <Pill tone="warning">{waitingLabel(c)}</Pill>}</div>
                       <p className="text-sm text-ink-muted">{OWNER_LABEL[STAGE_OWNER[c.stage]]}{!c.route && c.consultantId ? ` · ${d.users.find((u) => u.id === c.consultantId)?.name}` : ""}</p>
                       <DeadlineBadge iso={c.deadline} />

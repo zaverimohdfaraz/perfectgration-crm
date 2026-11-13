@@ -22,6 +22,8 @@ import { byCampaign, demoAds, metaLeads } from "../lib/ads";
 import * as LG from "../lib/logins";
 import { safeCell } from "../lib/csv";
 import { ID_PATTERN } from "../lib/ids";
+import * as LD from "../lib/leads";
+import { createHmac } from "node:crypto";
 import { LoginModel } from "../lib/server/models";
 
 let passed = 0;
@@ -188,7 +190,7 @@ test("Passing to a visa team only lets members of that visa team accept", () => 
     const r = L.claimCase(v, ctx(m));
     assert.equal(!L.isFail(r), can, `${m.name} ${can ? "should" : "should not"} be able to accept`);
   }
-  v = ok(L.createCase(ctx(reem), { id: "t4", ref: "PG-26-9004", clientId: "c2", visa: "work", leadSource: "Facebook", priority: "high", destination: "Canada", pass: { kind: "person", userId: noura.id } }));
+  v = ok(L.createCase(ctx(admin), { id: "t4", ref: "PG-26-9004", clientId: "c2", visa: "work", leadSource: "Facebook", priority: "high", destination: "Canada", pass: { kind: "person", userId: noura.id } }));
   assert.equal(v.consultantId, noura.id);
   assert.equal(v.route, undefined);
 });
@@ -425,6 +427,59 @@ test("sign-in CSV: a crafted device name cannot run as a formula", () => {
   assert.ok(csv.split("\n")[1].endsWith(",'=cmd|' /C calc'!A0"), csv);
 });
 
+
+/* ─── Automatic leads: Social Media and Meta or Google forms go straight to Sales ─── */
+test("a lead made by the Social Media team goes straight to the Sales Team", () => {
+  const social = USERS.find((u) => u.role === "consultant" && u.workTeam === "social")!;
+  const c = ok(L.createCase(ctx(social), { id: "auto1", ref: "PG-26-9100", clientId: "c1", visa: "study", leadSource: "Instagram", priority: "normal", destination: "" }));
+  assert.equal(c.route?.to, "sales", "no pass was asked for, yet it still goes to Sales");
+  assert.equal(c.route?.kind, "team");
+  assert.equal(c.stage, "firstcall");
+  assert.equal(c.consultantId, "", "nobody in Social Media keeps it");
+});
+test("Social Media never sends a lead to one named person: it goes to the whole Sales Team", () => {
+  const social = USERS.find((u) => u.role === "consultant" && u.workTeam === "social")!;
+  const sales = USERS.find((u) => u.role === "consultant" && u.workTeam === "sales" && !u.inactive)!;
+  const c = ok(L.createCase(ctx(social), { id: "auto2", ref: "PG-26-9101", clientId: "c1", visa: "study", leadSource: "Instagram", priority: "normal", destination: "", pass: { kind: "person", userId: sales.id } }));
+  assert.equal(c.route?.to, "sales");
+  assert.equal(c.route?.kind, "team");
+  assert.equal(c.consultantId, "");
+});
+test("the administrator still creates leads as before (no forced pass)", () => {
+  const admin = USERS.find((u) => u.role === "admin")!;
+  const c = ok(L.createCase(ctx(admin), { id: "auto3", ref: "PG-26-9102", clientId: "c1", visa: "study", leadSource: "Referral", priority: "normal", destination: "" }));
+  assert.equal(c.route, undefined, "admin keeps the lead until someone passes it on");
+});
+test("Meta lead form: name, phone, email, campaign, visa and answers", () => {
+  const l = LD.parseMetaLead({ campaign_name: "Canada Oct", field_data: [
+    { name: "full_name", values: ["  Sara Ali "] }, { name: "phone_number", values: ["+966500000001"] }, { name: "email", values: ["sara@example.com"] },
+    { name: "which_visa_do_you_need", values: ["Study visa"] }, { name: "city", values: ["Riyadh"] } ] }, "123");
+  assert.deepEqual([l.source, l.externalId, l.name, l.phone, l.email, l.campaign, l.visa, l.leadSource], ["meta", "meta:123", "Sara Ali", "+966500000001", "sara@example.com", "Canada Oct", "study", "Facebook"]);
+  assert.deepEqual(l.answers, ["which visa do you need: Study visa", "city: Riyadh"]);
+  const split = LD.parseMetaLead({ field_data: [{ name: "first_name", values: ["Omar"] }, { name: "last_name", values: ["Saleh"] }] }, "9");
+  assert.equal(split.name, "Omar Saleh");
+  assert.equal(split.visa, LD.DEFAULT_VISA, "no visa question: default");
+});
+test("Google lead form: columns become the lead", () => {
+  const l = LD.parseGoogleLead({ lead_id: "g-77", campaign_id: 555, user_column_data: [
+    { column_id: "FULL_NAME", string_value: "Huda K" }, { column_id: "PHONE_NUMBER", string_value: "+966511111111" }, { column_id: "EMAIL", string_value: "huda@example.com" }, { column_id: "WORK_VISA", column_name: "Visa type", string_value: "Work permit" } ] });
+  assert.deepEqual([l.source, l.externalId, l.name, l.phone, l.email, l.visa, l.leadSource, l.campaign], ["google", "google:g-77", "Huda K", "+966511111111", "huda@example.com", "work", "Google Ads", "Campaign 555"]);
+});
+test("Meta requests must be signed with the app secret", () => {
+  const body = JSON.stringify({ entry: [{ changes: [{ field: "leadgen", value: { leadgen_id: "1" } }] }] });
+  const good = "sha256=" + createHmac("sha256", "topsecret").update(body).digest("hex");
+  assert.ok(LD.verifyMetaSignature(body, good, "topsecret"));
+  assert.ok(!LD.verifyMetaSignature(body + " ", good, "topsecret"), "changed body");
+  assert.ok(!LD.verifyMetaSignature(body, good, "other"), "wrong secret");
+  assert.ok(!LD.verifyMetaSignature(body, null, "topsecret"), "no signature");
+  assert.ok(!LD.verifyMetaSignature(body, good, ""), "no secret set: refuse");
+});
+test("Google key comparison: equal only when exactly the same", () => {
+  assert.ok(LD.sameSecret("abc123", "abc123"));
+  assert.ok(!LD.sameSecret("abc12", "abc123"));
+  assert.ok(!LD.sameSecret("", ""), "an empty key never matches");
+});
+
 /* ─── 4. API input checks ─── */
 test("API accepts what the app sends", () => {
   Z.newCase.parse({ clientId: "c1", visa: "study", leadSource: "Instagram", campaign: "X", priority: "normal", destination: "Canada", budget: 1000, pass: { kind: "team" }, id: "cs_abc123" });
@@ -445,6 +500,19 @@ test("API refuses bad input", () => {
   assert.throws(() => Z.clientPatch.parse({ $where: "1" }));
   assert.throws(() => Z.todoPatch.parse({ createdBy: "u-admin" }));
   assert.throws(() => Z.newMessage.parse({ id: "m1", subject: "", body: "b", toAll: true, toUserIds: [], toTeams: [], toDepartments: [] }));
+});
+
+
+test("The case holder can change visa type, destination and sub-destination; the change is noted", () => {
+  const holder = USERS.find((u) => u.role === "consultant" && u.workTeam === "sales" && !u.inactive)!;
+  const created = ok(L.createCase(ctx(admin), { id: "t5", ref: "PG-26-9005", clientId: "c3", visa: "study", leadSource: "Referral", priority: "normal", pass: { kind: "person", userId: holder.id } }));
+  assert.equal(created.destination, "");
+  assert.equal(created.subDestination, undefined);
+  const edited = ok(L.editCase(created, ctx(holder), { visa: "work", destination: "Canada", subDestination: "Toronto, Ontario" }));
+  assert.equal(edited.visa, "work");
+  assert.equal(edited.destination, "Canada");
+  assert.equal(edited.subDestination, "Toronto, Ontario");
+  assert.ok(edited.notes.at(-1)?.text.includes("Visa type changed"));
 });
 
 console.log(`\n${passed} passed, ${failures.length} failed\n`);

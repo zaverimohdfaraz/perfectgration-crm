@@ -13,7 +13,7 @@ export const DEPT: Record<TeamId, { label: string; blurb: string; Icon: typeof B
 export function DeptChip({ team, large = false }: { team: TeamId; large?: boolean }) {
   const x = DEPT[team];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-md font-semibold ring-1 ring-inset ${x.chip} ${large ? "px-3 py-1.5 text-[0.9375rem]" : "px-2.5 py-1 text-sm"}`}>
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md font-semibold ring-1 ring-inset ${x.chip} ${large ? "px-3 py-1.5 text-[0.9375rem]" : "px-2.5 py-1 text-sm"}`}>
       <x.Icon size={large ? 18 : 15} aria-hidden />
       {x.label}
     </span>

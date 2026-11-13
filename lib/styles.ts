@@ -11,5 +11,5 @@ export const btn = {
   danger: `${btnBase} bg-red-700 text-white hover:bg-red-800`,
   ghost: `${btnBase} text-brand-deep hover:bg-brand-soft`,
 };
-export const th = "px-4 py-3 text-left text-sm font-semibold text-ink-muted";
-export const td = "px-4 py-3 align-top";
+export const th = "px-4 py-3 text-left text-[0.8125rem] font-semibold uppercase tracking-wide text-ink-muted whitespace-nowrap";
+export const td = "px-4 py-4 align-top";

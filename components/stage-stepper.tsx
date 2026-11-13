@@ -37,10 +37,10 @@ export function StageStepper({ current, visa }: { current: StageId; visa: TeamId
             <div className={`mb-2 flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${CIRCLE[s.state]}`}>
               {s.state === "done" ? <Check size={18} aria-label="Completed" /> : s.n === 0 ? "•" : s.n}
             </div>
-            <p className={`text-[0.8125rem] leading-snug ${s.state === "current" ? "font-bold text-ink" : "text-ink-muted"}`}>
+            <p className={`text-sm leading-snug ${s.state === "current" ? "font-bold text-ink" : "text-ink-muted"}`}>
               {s.label}
               {s.state === "skipped" && <span className="block text-xs">Skipped for Visit</span>}
-              <span className={`mt-0.5 block text-[0.6875rem] font-medium uppercase tracking-wide ${RING[STAGE_OWNER[s.id]]}`}>{SHORT[STAGE_OWNER[s.id]]}</span>
+              <span className={`mt-0.5 block text-xs font-semibold uppercase tracking-wide ${RING[STAGE_OWNER[s.id]]}`}>{SHORT[STAGE_OWNER[s.id]]}</span>
             </p>
           </li>
         ))}

@@ -121,7 +121,10 @@ export type Case = {
   campaign?: string;
   dealFeeSar?: number;
   priority: Priority;
+  /** Country. Optional: left empty when the lead has not said. */
   destination: string;
+  /** Sub-destination: city, province, state or university. Optional. */
+  subDestination?: string;
   budget?: number;
   appointmentAt?: string;
   agreementSigned?: boolean;
@@ -269,7 +272,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   consultant: "Team member",
 };
 
-export const LEAD_SOURCES = ["Instagram", "Facebook", "WhatsApp", "TikTok", "LinkedIn", "Referral", "Other"];
+export const LEAD_SOURCES = ["Instagram", "Facebook", "WhatsApp", "TikTok", "LinkedIn", "Google Ads", "Referral", "Other"];
 
 export const stageLabel = (id: StageId) => STAGES.find((s) => s.id === id)?.label ?? id;
 /** Intake is step 0. Sales owns steps 1 to 5, the Case Manager owns step 6 onwards. */
@@ -464,7 +467,7 @@ export const ASSESSMENTS: Record<string, Assessment> = {
       { label: "STEM field", value: "Yes" },
     ],
     missing: ["Six months of bank statements", "Proof of funds"],
-    ruleVersion: "demo-v0 (illustrative)",
+    ruleVersion: "provisional-v0",
     assessedBy: "Omar Saleh",
     assessedAt: isoFromToday(-5),
   },
@@ -475,7 +478,7 @@ export const ASSESSMENTS: Record<string, Assessment> = {
       { label: "English level", value: "Pending test" },
     ],
     missing: ["Employment letter", "English test result"],
-    ruleVersion: "demo-v0 (illustrative)",
+    ruleVersion: "provisional-v0",
     assessedBy: "Noura Al-Qahtani",
     assessedAt: isoFromToday(-3),
   },
@@ -670,7 +673,8 @@ export const PROCESS_LANES: { owner: StageOwner; handoff?: string; steps: { labe
 const SALES_BY_VISA: Record<TeamId, string> = { study: "u-omar", visit: "u-omar", work: "u-noura", skilled: "u-noura", eb2niw: "u-faisal" };
 const CM_BY_VISA: Record<TeamId, string> = { study: "u-sultan", visit: "u-sultan", work: "u-dina", skilled: "u-dina", eb2niw: "u-dina" };
 const DESTINATION: Record<TeamId, string> = { study: "Canada", work: "Australia", visit: "United Kingdom", skilled: "Germany", eb2niw: "United States" };
-export const DESTINATIONS = ["Canada", "United Kingdom", "Germany", "Australia", "United States", "United Arab Emirates", "Schengen area", "Other"];
+/** "Toronto · Ontario" style text for lists and headings. Empty when neither is known. */
+export const destinationOf = (c: { destination?: string; subDestination?: string }) => [c.destination, c.subDestination].filter(Boolean).join(" · ");
 
 /** Who is responsible when a case sits in this stage. */
 export function responsibleFor(stage: StageId, c: { leadById: string; salesId: string; caseManagerId: string }): string {
