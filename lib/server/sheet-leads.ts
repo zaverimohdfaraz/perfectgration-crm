@@ -19,7 +19,7 @@ const EVERY_MS = 5 * 60_000;
 /** A safety limit only. Meta adds new leads at the bottom, so every row up to this limit is read. */
 const MAX_ROWS = 50_000;
 
-export type SheetSyncResult = { created: number; existing: number; skipped: number; failed: number; error?: string };
+export type SheetSyncResult = { at?: string; rows: number; created: number; existing: number; skipped: number; failed: number; error?: string };
 
 export function sheetConfig(): { id: string; email: string; key: string } | undefined {
   const id = process.env.GOOGLE_SHEETS_LEADS_ID?.trim();
@@ -40,7 +40,7 @@ async function accessToken(cfg: { email: string; key: string }): Promise<string>
     .setIssuedAt().setExpirationTime("1h").sign(key);
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, cache: "no-store",
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth2:grant-type:jwt-bearer", assertion }),
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
   });
   const j = (await r.json().catch(() => ({}))) as { access_token?: string; error?: string; error_description?: string };
   if (!r.ok || !j.access_token) throw new Error(`Google sign-in failed: ${j.error_description ?? j.error ?? r.status}`);
@@ -62,7 +62,7 @@ export async function readSheetRows(): Promise<Record<string, string>[]> {
   return body.map((row) => Object.fromEntries(keys.map((k, i) => [k, String(row[i] ?? "")])));
 }
 
-async function saveStatus(s: { at: string; ok: boolean; created: number; error?: string }) {
+async function saveStatus(s: { at: string; ok: boolean; rows: number; created: number; skipped: number; error?: string }) {
   await SettingsModel.updateOne({ _id: "main" }, { $set: { leadSheet: s } }, { upsert: true });
 }
 
@@ -72,6 +72,7 @@ export async function syncSheetLeads(): Promise<SheetSyncResult> {
   const at = new Date().toISOString();
   try {
     const parsed = (await readSheetRows()).map(parseSheetLead);
+    const rows = parsed.length;
     const leads = parsed.filter((l): l is IncomingLead => !!l);
     const skipped = parsed.length - leads.length;
     const ids = leads.map((l) => l.externalId);
@@ -87,16 +88,17 @@ export async function syncSheetLeads(): Promise<SheetSyncResult> {
       } catch (e) {
         failed++;
         firstError ??= (e as Error).message;
+        console.error("[sheet-leads] a row could not be added:", (e as Error).message);
       }
     }
     const error = failed ? `${failed} lead${failed === 1 ? "" : "s"} could not be added: ${firstError}` : undefined;
-    await saveStatus({ at, ok: !failed, created, error });
-    return { created, existing: known.size, skipped, failed, error };
+    await saveStatus({ at, ok: !failed, rows, created, skipped, error });
+    return { at, rows, created, existing: known.size, skipped, failed, error };
   } catch (e) {
     const error = (e as Error).message;
-    await saveStatus({ at, ok: false, created: 0, error }).catch(() => undefined);
+    await saveStatus({ at, ok: false, rows: 0, created: 0, skipped: 0, error }).catch(() => undefined);
     console.error("[sheet-leads] sync failed:", error);
-    return { created: 0, existing: 0, skipped: 0, failed: 0, error };
+    return { at, rows: 0, created: 0, existing: 0, skipped: 0, failed: 0, error };
   }
 }
 
@@ -107,4 +109,12 @@ export async function syncSheetIfDue(): Promise<void> {
   const s = (await SettingsModel.findById("main").select({ leadSheet: 1 }).lean()) as { leadSheet?: { at?: string } } | null;
   if (s?.leadSheet?.at && Date.now() - Date.parse(s.leadSheet.at) < EVERY_MS) return;
   await syncSheetLeads();
+}
+
+/** What the Social Media page shows about the last sheet sync. */
+export async function sheetStatus() {
+  const cfg = sheetConfig();
+  await connectDb();
+  const s = (await SettingsModel.findById("main").select({ leadSheet: 1 }).lean()) as { leadSheet?: Record<string, unknown> } | null;
+  return { configured: !!cfg, last: (s?.leadSheet ?? null) as null | { at: string; ok: boolean; rows: number; created: number; skipped: number; error?: string } };
 }

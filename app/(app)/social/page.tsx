@@ -7,6 +7,7 @@ import { BarChart, Kpi, RangePicker, TeamCases, useRange } from "@/components/hu
 import { IntakeDialog } from "@/components/dialogs-cases";
 import { AdsPanel } from "@/components/ads-panel";
 import { LeadsList } from "@/components/leads-list";
+import { SheetStatus } from "@/components/sheet-status";
 import { useDemo } from "@/lib/store";
 import { LEAD_SOURCES, STAGE_OWNER, type Case } from "@/lib/demo-data";
 import { avg, entered, enteredIn, fmtHours, hoursBetween, inPeriod, pct, series } from "@/lib/analytics";
@@ -52,6 +53,7 @@ export default function SocialPage() {
 
       <div className="mt-5"><Panel><BarChart title={`Leads created and passed to Sales · ${range.label}`} data={chart} names={["Leads created", "Passed to Sales"]} /></Panel></div>
 
+      {leader && <div className="mt-5"><SheetStatus /></div>}
       <div className="mt-5"><LeadsList cases={all} range={range} leader={leader} /></div>
 
       <div className="mt-5"><AdsPanel range={range} cases={leader ? d.cases : all} leader={leader} /></div>
