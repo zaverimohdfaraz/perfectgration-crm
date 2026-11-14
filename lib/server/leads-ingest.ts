@@ -14,6 +14,17 @@ const actorFor = (source: IncomingLead["source"]) =>
     teams: [], title: "Automatic", canAdd: false, inactive: false, lastSeen: nowIso(), mustChangePassword: false, sessionVersion: 1,
   }) as unknown as User;
 
+const VISAS = ["study", "work", "visit", "skilled", "eb2niw"] as const;
+
+/**
+ * Visa for a lead whose form and campaign name say nothing about the visa. Set LEADS_DEFAULT_VISA in Vercel
+ * (study, work, visit, skilled or eb2niw) to use one; leave it empty and the lead shows "Visa not chosen" until someone picks it.
+ */
+function defaultVisa(): IncomingLead["visa"] {
+  const v = process.env.LEADS_DEFAULT_VISA?.trim().toLowerCase() ?? "";
+  return (VISAS as readonly string[]).includes(v) ? (v as IncomingLead["visa"]) : "";
+}
+
 /**
  * Adds one lead from a platform. It goes straight to the Sales Team, exactly like a lead made by the Social Media team.
  * A lead that was already added is ignored, so the platform can safely send it again.
@@ -34,7 +45,7 @@ export async function ingestLead(l: IncomingLead): Promise<{ status: "created" |
   const x0 = await ctxFor(actorFor(l.source));
   const x = l.createdAt ? { ...x0, at: l.createdAt } : x0;
   const res = createCase(x, {
-    id: newId("cs"), ref: await nextCaseRef(), clientId, visa: l.visa, leadSource: l.leadSource, campaign: l.campaign,
+    id: newId("cs"), ref: await nextCaseRef(), clientId, visa: l.visa || defaultVisa(), leadSource: l.leadSource, campaign: l.campaign,
     priority: "normal", destination: "", note: l.answers.length ? `Form answers. ${l.answers.join(" · ")}` : undefined,
     pass: { kind: "team" },
   });

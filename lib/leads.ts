@@ -25,11 +25,17 @@ export type IncomingLead = {
 /** Visa words that a form question may contain, e.g. "Which visa do you need?" → "Study". */
 const VISA_WORDS: [TeamId, RegExp][] = [
   ["eb2niw", /eb-?2|niw/i],
-  ["skilled", /skill/i],
-  ["study", /study|student|university|college/i],
-  ["work", /\bwork|job|employ/i],
-  ["visit", /visit|tourist|tourism|family/i],
+  ["skilled", /skill|qualifi|express entry|\bpr\b|permanent/i],
+  ["study", /study|student|university|college|[ée]tud|universit/i],
+  ["work", /\bwork|job|employ|travail|emploi/i],
+  ["visit", /visit|tourist|tourism|family|touris/i],
 ];
+
+/** Guesses the visa from the campaign, ad set, ad or form name (e.g. "Study Canada | Leads"). */
+export function visaFromNames(...names: (string | undefined)[]): TeamId | undefined {
+  const text = names.filter(Boolean).join(" ");
+  return text ? VISA_WORDS.find(([, re]) => re.test(text))?.[0] : undefined;
+}
 
 export function visaFromAnswer(label: string, value: string): TeamId | undefined {
   if (!/visa|service|interest|need/i.test(label)) return undefined;
@@ -55,7 +61,7 @@ export function parseMetaLead(graph: { field_data?: { name: string; values?: str
     source: "meta", externalId: `meta:${leadgenId}`,
     name: name || "Facebook lead", phone: value("phone_number"), email: value("email"),
     campaign: clean(graph.campaign_name) || undefined,
-    visa: visa ?? "", leadSource: "Facebook", answers: other,
+    visa: visa ?? visaFromNames(clean(graph.campaign_name)) ?? "", leadSource: "Facebook", answers: other,
   };
 }
 
@@ -76,14 +82,15 @@ export function parseSheetLead(row: Record<string, string>): IncomingLead | unde
     if (!v || SHEET_FIXED.has(key)) continue;
     const label = key.replace(/_/g, " ").replace(/\?$/, "").replace(/\s+/g, " ").trim();
     visa = visa ?? visaFromAnswer(label, v);
-    other.push(`${label}: ${v}`);
+    other.push(`${label}: ${v.replace(/_/g, " ")}`);
   }
   const created = Date.parse(clean(row.created_time));
   return {
     source: "meta", externalId: `meta:${id}`,
     name: clean(row.full_name) || "Facebook lead", phone: clean(row.phone_number).replace(/^p:/, ""), email: clean(row.email),
     campaign: clean(row.campaign_name) || undefined,
-    visa: visa ?? "", leadSource: clean(row.platform).toLowerCase() === "ig" ? "Instagram" : "Facebook",
+    visa: visa ?? visaFromNames(clean(row.campaign_name), clean(row.adset_name), clean(row.ad_name), clean(row.form_name)) ?? "",
+    leadSource: clean(row.platform).toLowerCase() === "ig" ? "Instagram" : "Facebook",
     answers: other, createdAt: Number.isNaN(created) ? undefined : new Date(created).toISOString(),
   };
 }

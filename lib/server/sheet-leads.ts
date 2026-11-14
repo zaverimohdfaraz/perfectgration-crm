@@ -21,20 +21,56 @@ const MAX_ROWS = 50_000;
 
 export type SheetSyncResult = { at?: string; rows: number; created: number; existing: number; skipped: number; failed: number; error?: string };
 
-export function sheetConfig(): { id: string; email: string; key: string } | undefined {
-  const id = process.env.GOOGLE_SHEETS_LEADS_ID?.trim();
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
-  if (!id || !raw) return undefined;
-  try {
-    const j = JSON.parse(raw) as { client_email?: string; private_key?: string };
-    if (j.client_email && j.private_key) return { id, email: j.client_email, key: j.private_key };
-  } catch { /* reported below */ }
-  console.error("[sheet-leads] GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON");
+type SheetConfig = { id: string; email: string; key: string };
+
+/** Accepts the bare sheet id or the whole sheet address (…/spreadsheets/d/<id>/edit…). */
+function sheetId(raw: string): string {
+  const v = raw.trim().replace(/^["']|["']$/g, "");
+  return v.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/)?.[1] ?? v;
+}
+
+/** Reads the service-account key however it was pasted: plain JSON, JSON wrapped in quotes, or base64. */
+function parseServiceAccount(raw: string): { client_email?: string; private_key?: string } | undefined {
+  let v = raw.trim();
+  if (v.length > 1 && v.startsWith("'") && v.endsWith("'")) v = v.slice(1, -1);
+  const attempts = [v];
+  if (!v.startsWith("{")) {
+    try { attempts.push(Buffer.from(v, "base64").toString("utf8")); } catch { /* not base64 */ }
+  }
+  for (const a of attempts) {
+    try {
+      let j: unknown = JSON.parse(a);
+      if (typeof j === "string") j = JSON.parse(j); // the JSON was pasted inside a JSON string
+      if (j && typeof j === "object") return j as { client_email?: string; private_key?: string };
+    } catch { /* try the next form */ }
+  }
   return undefined;
 }
 
+function readConfig(): { cfg?: SheetConfig; problem?: string } {
+  const rawId = process.env.GOOGLE_SHEETS_LEADS_ID?.trim();
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
+  if (!rawId && !raw) return {};
+  if (!rawId) return { problem: "GOOGLE_SHEETS_LEADS_ID is missing." };
+  if (!raw) return { problem: "GOOGLE_SERVICE_ACCOUNT_JSON is missing." };
+  const j = parseServiceAccount(raw);
+  if (!j) return { problem: "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON. Paste the whole key file, from { to }." };
+  if (!j.client_email || !j.private_key) return { problem: "GOOGLE_SERVICE_ACCOUNT_JSON has no client_email or private_key. Use the service account's JSON key file." };
+  // A key pasted with "\n" as text (instead of line breaks) cannot be read, so turn those back into line breaks.
+  const key = j.private_key.replace(/\\n/g, "\n").replace(/\r/g, "");
+  return { cfg: { id: sheetId(rawId), email: j.client_email, key } };
+}
+
+export function sheetConfig(): SheetConfig | undefined {
+  const { cfg, problem } = readConfig();
+  if (problem) console.error(`[sheet-leads] ${problem}`);
+  return cfg;
+}
+
 async function accessToken(cfg: { email: string; key: string }): Promise<string> {
-  const key = await importPKCS8(cfg.key, "RS256");
+  const key = await importPKCS8(cfg.key, "RS256").catch(() => {
+    throw new Error("The private_key in GOOGLE_SERVICE_ACCOUNT_JSON could not be read. Paste the key file again, unchanged.");
+  });
   const assertion = await new SignJWT({ scope: SCOPE })
     .setProtectedHeader({ alg: "RS256" }).setIssuer(cfg.email).setAudience("https://oauth2.googleapis.com/token")
     .setIssuedAt().setExpirationTime("1h").sign(key);
@@ -49,13 +85,20 @@ async function accessToken(cfg: { email: string; key: string }): Promise<string>
 
 /** Every row of the first sheet, as {column heading: value}. */
 export async function readSheetRows(): Promise<Record<string, string>[]> {
-  const cfg = sheetConfig();
+  const { cfg, problem } = readConfig();
+  if (problem) throw new Error(problem);
   if (!cfg) return [];
   const token = await accessToken(cfg);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(cfg.id)}/values/A:ZZ`;
   const r = await fetch(url, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
   const j = (await r.json().catch(() => ({}))) as { values?: unknown[][]; error?: { message?: string } };
-  if (!r.ok) throw new Error(`Google Sheets: ${j.error?.message ?? r.status}`);
+  if (!r.ok) {
+    const m = j.error?.message ?? String(r.status);
+    if (r.status === 403 && /has not been used|is disabled/i.test(m)) throw new Error("The Google Sheets API is switched off for this service account's Google Cloud project. Enable it in Google Cloud → APIs & Services → Library → Google Sheets API.");
+    if (r.status === 403) throw new Error(`The sheet is not shared with ${cfg.email}. Share it with that address as Viewer.`);
+    if (r.status === 404) throw new Error("No sheet with that id. Check GOOGLE_SHEETS_LEADS_ID (the part of the address between /d/ and /edit).");
+    throw new Error(`Google Sheets: ${m}`);
+  }
   const [head = [], ...body] = j.values ?? [];
   const keys = head.map((h) => String(h ?? "").trim());
   if (body.length > MAX_ROWS) throw new Error(`The sheet has more than ${MAX_ROWS} rows`);
@@ -113,8 +156,13 @@ export async function syncSheetIfDue(): Promise<void> {
 
 /** What the Social Media page shows about the last sheet sync. */
 export async function sheetStatus() {
-  const cfg = sheetConfig();
+  const { cfg, problem } = readConfig();
   await connectDb();
   const s = (await SettingsModel.findById("main").select({ leadSheet: 1 }).lean()) as { leadSheet?: Record<string, unknown> } | null;
-  return { configured: !!cfg, last: (s?.leadSheet ?? null) as null | { at: string; ok: boolean; rows: number; created: number; skipped: number; error?: string } };
+  // The settings start with an empty object here, which means "never synced".
+  const last = s?.leadSheet && typeof s.leadSheet.at === "string" ? s.leadSheet : null;
+  return {
+    configured: !!cfg, problem: problem ?? null, account: cfg?.email ?? null,
+    last: last as null | { at: string; ok: boolean; rows: number; created: number; skipped: number; error?: string },
+  };
 }

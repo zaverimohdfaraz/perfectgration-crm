@@ -196,7 +196,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               <Panel title="Client and application">
                 <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                   <Item label="Client" value={<Link href={`/clients/${c.clientId}`} className="font-medium text-brand-deep hover:underline">{client?.name}</Link>} />
-                  <Item label="Visa type" value={visaLabel(c.visa)} />
+                  <Item label="Visa type" value={c.visa ? visaLabel(c.visa) : (
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-amber-800">Not chosen yet</span>
+                      {(editable || canReassign(d.user)) && <button type="button" className="font-medium text-brand-deep underline" onClick={() => setDlg("edit")}>Choose visa type</button>}
+                    </span>
+                  )} />
                   <Item label="Destination" value={c.destination || "Not given"} />
                   <Item label="Sub-destination" value={c.subDestination || "Not given"} />
                   <Item label="Budget" value={c.budget ? fmtSar(c.budget) : "Not given"} />
