@@ -51,32 +51,46 @@ async function getJson(url: string, init?: RequestInit): Promise<unknown> {
 
 /* ─── Meta ─── */
 type MetaInsight = { campaign_id: string; campaign_name: string; date_start: string; spend?: string; impressions?: string; clicks?: string; actions?: { action_type: string; value: string }[] };
-async function fetchMeta(days: number): Promise<AdRow[]> {
+/** What one platform returned: the rows from the accounts that worked, and an error line for each account that did not. */
+type Fetched = { rows: AdRow[]; failed: string[] };
+
+async function fetchMeta(days: number): Promise<Fetched> {
   const cfg = metaConfig();
-  if (!cfg) return [];
+  if (!cfg) return { rows: [], failed: [] };
   const base = `https://graph.facebook.com/${cfg.version}`;
   const rows: AdRow[] = [];
+  const failed: string[] = [];
+  // Each ad account is read on its own, so one account with a problem never stops the others.
   for (const account of cfg.accounts) {
-    const auth = new URLSearchParams({ access_token: cfg.token, ...(cfg.proof ? { appsecret_proof: cfg.proof } : {}) });
-    const info = (await getJson(`${base}/${account}?fields=currency&${auth}`)) as { currency?: string };
-    const params = new URLSearchParams({
-      level: "campaign", time_increment: "1", limit: "500",
-      fields: "campaign_id,campaign_name,spend,impressions,clicks,actions",
-      time_range: JSON.stringify({ since: ago(days), until: ago(0) }),
-      access_token: cfg.token,
-      ...(cfg.proof ? { appsecret_proof: cfg.proof } : {}),
-    });
-    let url: string | undefined = `${base}/${account}/insights?${params}`;
-    for (let page = 0; url && page < 50; page++) {
-      const r = (await getJson(url)) as { data?: MetaInsight[]; paging?: { next?: string } };
-      for (const x of r.data ?? []) {
-        rows.push({
-          platform: "meta", accountId: account, campaignId: x.campaign_id, campaignName: x.campaign_name, date: x.date_start,
-          spend: Number(x.spend) || 0, currency: info.currency ?? "", impressions: Number(x.impressions) || 0, clicks: Number(x.clicks) || 0, leads: metaLeads(x.actions),
-        });
-      }
-      url = r.paging?.next;
+    try {
+      rows.push(...(await fetchMetaAccount(base, account, cfg, days)));
+    } catch (e) {
+      failed.push(`${account}: ${(e as Error).message}`);
     }
+  }
+  return { rows, failed };
+}
+
+async function fetchMetaAccount(base: string, account: string, cfg: NonNullable<ReturnType<typeof metaConfig>>, days: number): Promise<AdRow[]> {
+  const auth = { access_token: cfg.token, ...(cfg.proof ? { appsecret_proof: cfg.proof } : {}) };
+  const info = (await getJson(`${base}/${account}?fields=currency&${new URLSearchParams(auth)}`)) as { currency?: string };
+  const params = new URLSearchParams({
+    level: "campaign", time_increment: "1", limit: "500",
+    fields: "campaign_id,campaign_name,spend,impressions,clicks,actions",
+    time_range: JSON.stringify({ since: ago(days), until: ago(0) }),
+    ...auth,
+  });
+  const rows: AdRow[] = [];
+  let url: string | undefined = `${base}/${account}/insights?${params}`;
+  for (let page = 0; url && page < 50; page++) {
+    const r = (await getJson(url)) as { data?: MetaInsight[]; paging?: { next?: string } };
+    for (const x of r.data ?? []) {
+      rows.push({
+        platform: "meta", accountId: account, campaignId: x.campaign_id, campaignName: x.campaign_name, date: x.date_start,
+        spend: Number(x.spend) || 0, currency: info.currency ?? "", impressions: Number(x.impressions) || 0, clicks: Number(x.clicks) || 0, leads: metaLeads(x.actions),
+      });
+    }
+    url = r.paging?.next;
   }
   return rows;
 }
@@ -84,9 +98,9 @@ async function fetchMeta(days: number): Promise<AdRow[]> {
 /* ─── Google ─── */
 type GoogleRow = { customer?: { currencyCode?: string }; campaign?: { id?: string; name?: string }; segments?: { date?: string }; metrics?: { costMicros?: string; impressions?: string; clicks?: string; conversions?: number | string } };
 
-async function fetchGoogle(days: number): Promise<AdRow[]> {
+async function fetchGoogle(days: number): Promise<Fetched> {
   const cfg = googleConfig();
-  if (!cfg) return [];
+  if (!cfg) return { rows: [], failed: [] };
   const tok = (await getJson("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -95,36 +109,42 @@ async function fetchGoogle(days: number): Promise<AdRow[]> {
   if (!tok.access_token) throw new Error("Google did not return an access token. Check the client ID, secret and refresh token.");
   const query = `SELECT customer.currency_code, campaign.id, campaign.name, segments.date, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${ago(days)}' AND '${ago(0)}'`;
   const rows: AdRow[] = [];
+  const failed: string[] = [];
   for (const customer of cfg.customers) {
-    const batches = (await getJson(`https://googleads.googleapis.com/${cfg.version}/customers/${customer}/googleAds:searchStream`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${tok.access_token}`, "developer-token": cfg.developerToken, "Content-Type": "application/json",
-        ...(cfg.loginCustomerId ? { "login-customer-id": cfg.loginCustomerId } : {}),
-      },
-      body: JSON.stringify({ query }),
-    })) as { results?: GoogleRow[] }[];
-    for (const b of batches ?? []) {
-      for (const x of b.results ?? []) {
-        if (!x.campaign?.id || !x.segments?.date) continue;
-        rows.push({
-          platform: "google", accountId: customer, campaignId: x.campaign.id, campaignName: x.campaign.name ?? x.campaign.id, date: x.segments.date,
-          spend: Math.round((Number(x.metrics?.costMicros) || 0) / 10_000) / 100, currency: x.customer?.currencyCode ?? "",
-          impressions: Number(x.metrics?.impressions) || 0, clicks: Number(x.metrics?.clicks) || 0, leads: Math.round(Number(x.metrics?.conversions) || 0),
-        });
+    try {
+      const batches = (await getJson(`https://googleads.googleapis.com/${cfg.version}/customers/${customer}/googleAds:searchStream`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tok.access_token}`, "developer-token": cfg.developerToken, "Content-Type": "application/json",
+          ...(cfg.loginCustomerId ? { "login-customer-id": cfg.loginCustomerId } : {}),
+        },
+        body: JSON.stringify({ query }),
+      })) as { results?: GoogleRow[] }[];
+      for (const b of batches ?? []) {
+        for (const x of b.results ?? []) {
+          if (!x.campaign?.id || !x.segments?.date) continue;
+          rows.push({
+            platform: "google", accountId: customer, campaignId: x.campaign.id, campaignName: x.campaign.name ?? x.campaign.id, date: x.segments.date,
+            spend: Math.round((Number(x.metrics?.costMicros) || 0) / 10_000) / 100, currency: x.customer?.currencyCode ?? "",
+            impressions: Number(x.metrics?.impressions) || 0, clicks: Number(x.metrics?.clicks) || 0, leads: Math.round(Number(x.metrics?.conversions) || 0),
+          });
+        }
       }
+    } catch (e) {
+      failed.push(`${customer}: ${(e as Error).message}`);
     }
   }
-  return rows;
+  return { rows, failed };
 }
 
 /* ─── Sync and read ─── */
-type SyncResult = { platform: AdPlatform; configured: boolean; ok?: boolean; rows?: number; error?: string };
+type SyncResult = { platform: AdPlatform; configured: boolean; ok?: boolean; partial?: boolean; rows?: number; error?: string };
 
 /**
  * Fetches the last `days` days (default 30) for every configured platform and saves them.
  * Recent days are fetched again each time because the platforms keep correcting them for a few days.
- * One platform failing never stops the other.
+ * One platform failing never stops the other, and one ad account failing never stops the other accounts:
+ * the accounts that worked are saved, and the status says which account failed and why.
  */
 export async function syncAds(days = 30): Promise<SyncResult[]> {
   const out: SyncResult[] = [];
@@ -132,14 +152,18 @@ export async function syncAds(days = 30): Promise<SyncResult[]> {
     if (!configured) { out.push({ platform, configured: false }); continue; }
     const at = new Date().toISOString();
     try {
-      const rows = await run(days);
+      const { rows, failed } = await run(days);
+      // Every account failed: report it as a failed sync (and keep the numbers already saved).
+      if (failed.length && !rows.length) throw new Error(failed.join(" · "));
       if (rows.length) {
         await AdInsightModel.bulkWrite(rows.map((r) => ({
           replaceOne: { filter: { _id: `${r.platform}:${r.accountId}:${r.campaignId}:${r.date}` }, replacement: { _id: `${r.platform}:${r.accountId}:${r.campaignId}:${r.date}`, ...r, syncedAt: at }, upsert: true },
         })), { ordered: false });
       }
-      await SettingsModel.updateOne({ _id: "main" }, { $set: { [`adSync.${platform}`]: { at, ok: true } } }, { upsert: true });
-      out.push({ platform, configured: true, ok: true, rows: rows.length });
+      const error = failed.length ? `Not synced: ${failed.join(" · ")}`.slice(0, 600) : undefined;
+      if (error) console.error(`[ads] ${platform} partly synced:`, error);
+      await SettingsModel.updateOne({ _id: "main" }, { $set: { [`adSync.${platform}`]: { at, ok: true, ...(error ? { partial: true, error } : {}) } } }, { upsert: true });
+      out.push({ platform, configured: true, ok: true, partial: !!error, rows: rows.length, error });
     } catch (e) {
       const error = (e as Error).message.slice(0, 300);
       console.error(`[ads] ${platform} sync failed:`, error);
@@ -151,10 +175,10 @@ export async function syncAds(days = 30): Promise<SyncResult[]> {
 }
 
 export async function adStatus(): Promise<AdStatus[]> {
-  const s = (await SettingsModel.findById("main").select({ adSync: 1 }).lean()) as { adSync?: Record<string, { at?: string; ok?: boolean; error?: string }> } | null;
+  const s = (await SettingsModel.findById("main").select({ adSync: 1 }).lean()) as { adSync?: Record<string, { at?: string; ok?: boolean; partial?: boolean; error?: string }> } | null;
   return (["meta", "google"] as const).map((p) => {
     const st = s?.adSync?.[p];
-    return { platform: p, configured: p === "meta" ? !!metaConfig() : !!googleConfig(), lastSyncAt: st?.at, ok: st?.ok, error: st?.error };
+    return { platform: p, configured: p === "meta" ? !!metaConfig() : !!googleConfig(), lastSyncAt: st?.at, ok: st?.ok, partial: st?.partial, error: st?.error };
   });
 }
 

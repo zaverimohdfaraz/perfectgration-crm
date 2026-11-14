@@ -30,7 +30,9 @@ export async function ingestLead(l: IncomingLead): Promise<{ status: "created" |
     await ClientModel.create({ _id: clientId, name: l.name, phone: l.phone, email: l.email, nationality: "", country: "", dob: "", updatedAt: nowIso() });
   }
 
-  const x = await ctxFor(actorFor(l.source));
+  // A lead from a spreadsheet keeps the time the person actually filled in the form.
+  const x0 = await ctxFor(actorFor(l.source));
+  const x = l.createdAt ? { ...x0, at: l.createdAt } : x0;
   const res = createCase(x, {
     id: newId("cs"), ref: await nextCaseRef(), clientId, visa: l.visa, leadSource: l.leadSource, campaign: l.campaign,
     priority: "normal", destination: "", note: l.answers.length ? `Form answers. ${l.answers.join(" · ")}` : undefined,

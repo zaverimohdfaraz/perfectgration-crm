@@ -3,7 +3,7 @@
  * things. The real enforcement lives in the API layer (Phase 2), and the
  * UI is never treated as the security boundary.
  */
-import { STAGE_OWNER, STATUS_LABEL, type Case, type Message, type Role, type UploadLink, type User } from "./demo-data";
+import { STAGE_OWNER, STATUS_LABEL, type Case, type Message, type Role, type TeamId, type UploadLink, type User } from "./demo-data";
 
 export const isAdmin = (u: User) => u.role === "admin";
 
@@ -14,7 +14,7 @@ export const isPooled = (c: Case) => !!c.route;
 export function canClaim(u: User, c: Case): boolean {
   if (!c.route || u.role !== "consultant" || u.inactive) return false;
   if (u.workTeam !== c.route.to) return false;
-  if (c.route.kind === "visa") return u.teams.includes(c.route.visa ?? c.visa);
+  if (c.route.kind === "visa") return u.teams.includes((c.route.visa ?? c.visa) as TeamId);
   return true;
 }
 

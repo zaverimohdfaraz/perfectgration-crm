@@ -9,7 +9,7 @@
  * it forward, pressing "Keep this lead"), it is theirs and is never moved again. Leads passed to one named
  * person are never shared.
  */
-import type { Case, User } from "./demo-data";
+import type { Case, TeamId, User } from "./demo-data";
 
 export type ShareSettings = { autoShareLeads: boolean; onlineMinutes: number };
 export type ShareMove = { caseId: string; fromUserId: string | null; toUserId: string };
@@ -32,7 +32,7 @@ export function canReceive(u: User, c: Case): boolean {
   if (!isSalesMember(u)) return false;
   const scope = c.route ? { kind: c.route.kind, visa: c.route.visa ?? c.visa } : c.autoShared;
   if (!scope) return false;
-  return scope.kind === "visa" ? u.teams.includes(scope.visa ?? c.visa) : true;
+  return scope.kind === "visa" ? u.teams.includes((scope.visa ?? c.visa) as TeamId) : true;
 }
 
 const holderOf = (c: Case) => (c.route ? null : c.consultantId || null);

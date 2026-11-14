@@ -9,7 +9,7 @@ import { dayKey, rangeDays } from "@/lib/ads";
 import type { Range } from "@/lib/analytics";
 import { ROLE_LABEL, WORK_TEAM_LABEL, type User } from "@/lib/demo-data";
 import { TODAY } from "@/lib/dates";
-import { daysBetween, demoLogins, fmtClock, wasIn, workingDays, type LoginDay, type LoginsResponse } from "@/lib/logins";
+import { daysBetween, demoLogins, fmtClock, wasIn, type LoginDay, type LoginsResponse } from "@/lib/logins";
 import { td, th } from "@/lib/styles";
 
 /** The daily sign-in record for a range of days (YYYY-MM-DD). Sample data in demo mode; refreshed every 2 minutes in live mode. */
@@ -78,7 +78,7 @@ export function LastSeen({ r, online }: { r: LoginDay | undefined; online: boole
 
 /**
  * Dashboard panel for the administrator: who signed in today (first sign-in, online or last seen),
- * and, for the chosen date filter, on how many working days each person signed in.
+ * and, for the chosen date filter, on how many days each person signed in (every day counts, weekends included).
  */
 export function SignInsPanel({ range }: { range: Range }) {
   const d = useDemo();
@@ -91,7 +91,7 @@ export function SignInsPanel({ range }: { range: Range }) {
   const all = rows ?? [];
   const showRange = range.key !== "today";
   const rangeTo = r.to < today ? r.to : today;
-  const work = r.from <= rangeTo ? workingDays(daysBetween(r.from, rangeTo)) : 0;
+  const work = r.from <= rangeTo ? daysBetween(r.from, rangeTo).length : 0;
 
   const people = peopleFor(d.users, all.filter((x) => x.day === today));
   const todayOf = (u: User) => all.find((x) => x.userId === u.id && x.day === today);

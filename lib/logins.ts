@@ -47,9 +47,6 @@ export function daysBetween(from: string, to: string): string[] {
   return out;
 }
 
-/** Friday and Saturday: the weekend in Saudi Arabia. */
-export const isWeekend = (day: string) => [5, 6].includes(new Date(`${day}T12:00:00Z`).getUTCDay());
-
 /** Riyadh clock time, "09:05". */
 export const fmtClock = (iso?: string) => (iso ? new Date(Date.parse(iso) + TZ).toISOString().slice(11, 16) : "—");
 
@@ -102,9 +99,6 @@ export function summarise(users: User[], rows: LoginDay[]): PersonSummary[] {
   });
 }
 
-/** Working days (Sunday to Thursday) in a list of days. */
-export const workingDays = (days: string[]) => days.filter((d) => !isWeekend(d)).length;
-
 /** CSV of the daily rows, for Excel. */
 export function toCsv(users: User[], rows: LoginDay[]): string {
   const name = (id: string) => users.find((u) => u.id === id)?.name ?? id;
@@ -119,7 +113,7 @@ export function toCsv(users: User[], rows: LoginDay[]): string {
 }
 
 /**
- * Sample record for demo mode: working days only, most people in most days, a few absences,
+ * Sample record for demo mode: every day of the week, most people in most days, a few absences,
  * and today's sign-ins up to the demo clock. Always the same for the same range.
  */
 export function demoLogins(users: User[], fromDay: string, toDay: string, nowMs: number): LoginDay[] {
@@ -132,7 +126,6 @@ export function demoLogins(users: User[], fromDay: string, toDay: string, nowMs:
   users.forEach((u, i) => {
     if (u.inactive) return;
     for (const day of daysBetween(from, to)) {
-      if (isWeekend(day)) continue;
       const seed = (Number(day.replace(/-/g, "")) * (i + 7)) % 101;
       const isToday = day === today;
       if (seed % 9 === 0 || (isToday && ["u-faisal", "u-dina"].includes(u.id))) continue; // absent, or not in yet today

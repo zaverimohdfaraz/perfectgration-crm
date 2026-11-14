@@ -3,6 +3,8 @@ import { isoFromToday } from "./dates";
 /* ─── Types ─────────────────────────────────────────────── */
 export type Role = "admin" | "manager" | "consultant";
 export type TeamId = "study" | "work" | "visit" | "skilled" | "eb2niw";
+/** A case may have no visa type yet (for example a lead from a form that has no visa question). */
+export type VisaChoice = TeamId | "";
 export type CaseStatus = "active" | "on_hold" | "returned" | "withdrawn" | "refused" | "approved";
 export type WorkTeam = "social" | "sales" | "case";
 export type Priority = "normal" | "high" | "urgent";
@@ -98,7 +100,7 @@ export type Case = {
   id: string;
   ref: string;
   clientId: string;
-  visa: TeamId;
+  visa: VisaChoice;
   stage: StageId;
   status: CaseStatus;
   /** The person responsible right now. It changes at each handoff. */
@@ -277,7 +279,7 @@ export const LEAD_SOURCES = ["Instagram", "Facebook", "WhatsApp", "TikTok", "Lin
 export const stageLabel = (id: StageId) => STAGES.find((s) => s.id === id)?.label ?? id;
 /** Intake is step 0. Sales owns steps 1 to 5, the Case Manager owns step 6 onwards. */
 export const stageNumber = (id: StageId) => STAGES.findIndex((s) => s.id === id);
-export const visaLabel = (id: TeamId) => VISA_TYPES.find((v) => v.id === id)?.label ?? id;
+export const visaLabel = (id: VisaChoice) => VISA_TYPES.find((v) => v.id === id)?.label ?? (id || "Not chosen");
 
 /* ─── Users (demo accounts; Admin creates real accounts in Phase 2) ─── */
 export const USERS: User[] = [
@@ -636,7 +638,7 @@ export const STAGE_OWNER: Record<StageId, StageOwner> = {
 };
 export const OWNER_LABEL: Record<StageOwner, string> = { social: "Social Media Team", sales: "Sales Team", case: "Case Manager", leadership: "Admin / Manager" };
 /** "Waiting to be accepted in the Sales Team (Study team)": which team a waiting case is with. */
-export function waitingLabel(c: { route?: { to: StageOwner; kind: string; visa?: TeamId }; visa: TeamId }, short = false): string {
+export function waitingLabel(c: { route?: { to: StageOwner; kind: string; visa?: TeamId }; visa: VisaChoice }, short = false): string {
   if (!c.route) return "";
   const team = OWNER_LABEL[c.route.to].replace(/ Team$/, "");
   const visa = c.route.kind === "visa" ? ` · ${VISA_TYPES.find((v) => v.id === (c.route!.visa ?? c.visa))?.label ?? ""} team` : "";
@@ -686,14 +688,14 @@ const PRIORITIES: Priority[] = ["normal", "normal", "high", "normal", "urgent"];
 const DAY_MS = 86_400_000;
 
 export const CASES: Case[] = SEED_CASES.map((c, i) => {
-  const ids = { leadById: "u-reem", salesId: SALES_BY_VISA[c.visa], caseManagerId: CM_BY_VISA[c.visa] };
+  const ids = { leadById: "u-reem", salesId: SALES_BY_VISA[c.visa as TeamId], caseManagerId: CM_BY_VISA[c.visa as TeamId] };
   const idx = STAGES.findIndex((x) => x.id === c.stage);
   const since = new Date(c.stageSince).getTime();
   const at = (k: StageId) => STAGES.findIndex((x) => x.id === k);
   const base: Case = {
     ...c, ...ids,
     priority: PRIORITIES[i % PRIORITIES.length],
-    destination: DESTINATION[c.visa],
+    destination: DESTINATION[c.visa as TeamId],
     consultantId: "",
     appointmentAt: c.stage === "appointment" ? new Date(since + DAY_MS).toISOString() : undefined,
     agreementSigned: idx >= at("advance") ? true : undefined,
@@ -714,7 +716,7 @@ export const CASES: Case[] = SEED_CASES.map((c, i) => {
           : [],
   };
   // A few cases wait in a pool to show the accept flow.
-  if (c.ref === "PG-26-0008") { base.salesId = ""; base.route = { to: "sales", kind: "visa", visa: c.visa, by: "Reem Al-Zahrani", at: isoFromToday(-1) }; }
+  if (c.ref === "PG-26-0008") { base.salesId = ""; base.route = { to: "sales", kind: "visa", visa: c.visa as TeamId, by: "Reem Al-Zahrani", at: isoFromToday(-1) }; }
   if (c.ref === "PG-26-0011") { base.caseManagerId = ""; base.route = { to: "case", kind: "team", by: "Faisal Mansour", at: isoFromToday(-1) }; }
   base.consultantId = base.route ? "" : responsibleFor(c.stage, ids.leadById ? { leadById: base.leadById, salesId: base.salesId, caseManagerId: base.caseManagerId } : ids);
   return base;

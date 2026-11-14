@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { STAGES, stageNumber, type CaseStatus, type StageId, type TeamId } from "@/lib/demo-data";
+import { STAGES, stageNumber, type CaseStatus, type StageId, type TeamId, type VisaChoice } from "@/lib/demo-data";
 import { DeptChip } from "./department";
 import { deadlineState, deadlineText, fmtDate, stageTone } from "@/lib/dates";
 
@@ -48,6 +48,6 @@ export function StatusBadge({ status, label, restricted = false }: { status: Cas
   return <Pill tone={restricted ? "neutral" : STATUS[status]}>{label}</Pill>;
 }
 
-export function VisaBadge({ visa }: { visa: TeamId }) {
+export function VisaBadge({ visa }: { visa: VisaChoice }) {
   return <DeptChip team={visa} />;
 }

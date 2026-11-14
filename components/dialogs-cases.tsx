@@ -8,7 +8,7 @@ import { Field } from "./form";
 import { btn, field, area } from "@/lib/styles";
 import { useDemo, nextStageFor, type OutcomeResult, type PassTarget } from "@/lib/store";
 import { RoutePicker } from "./route-picker";
-import { ISSUE_LABEL, type IssueKind, LEAD_SOURCES, OWNER_LABEL, PRIORITY_LABEL, STAGE_OWNER, SUBMISSION_LABEL, VISA_TYPES, stageLabel, userById, type Case, type CaseStatus, type Priority, type StageId, type SubmissionStatus, type TeamId } from "@/lib/demo-data";
+import { ISSUE_LABEL, type IssueKind, LEAD_SOURCES, OWNER_LABEL, PRIORITY_LABEL, STAGE_OWNER, SUBMISSION_LABEL, VISA_TYPES, stageLabel, userById, type Case, type CaseStatus, type Priority, type StageId, type SubmissionStatus, type TeamId, type VisaChoice } from "@/lib/demo-data";
 import { canEditCase, canLogOutcome } from "@/lib/permissions";
 import { fmtDate, isoFromToday } from "@/lib/dates";
 import { NATIONALITIES, digits, fromDateInput, toDateInput } from "@/lib/forms";
@@ -182,7 +182,7 @@ export function PassDialog({ c, to, onClose }: { c: Case; to: StageId; onClose: 
   const [fees, setFees] = useState(c.feesCollectedSar ? String(c.feesCollectedSar) : "");
   const [paid, setPaid] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const route: PassTarget = target.kind === "visa" ? { kind: "visa", visa: target.visa ?? c.visa } : target;
+  const route: PassTarget = target.kind === "visa" ? { kind: "visa", visa: (target.visa ?? c.visa) || undefined } : target;
   const fromSales = team === "case";
 
   const submit = () => {
@@ -206,7 +206,7 @@ export function PassDialog({ c, to, onClose }: { c: Case; to: StageId; onClose: 
             <Field label="Payment" htmlFor="ps-paid" required error={errors.paid}><label className="flex min-h-11 items-center gap-3 text-[0.9375rem]"><input id="ps-paid" type="checkbox" className="h-5 w-5 accent-[#009FE3]" checked={paid} onChange={(e) => setPaid(e.target.checked)} /> Payment is confirmed and the agreement is signed</label></Field>
           </>
         )}
-        <RoutePicker to={team} value={route} onChange={setTarget} defaultVisa={c.visa} error={errors.route} />
+        <RoutePicker to={team} value={route} onChange={setTarget} defaultVisa={c.visa || undefined} error={errors.route} />
         <Field label="Note for the next team" htmlFor="ps-note" hint="Optional. Added to the case history."><textarea id="ps-note" className={area} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         <ModalActions>
           <button type="button" className={btn.secondary} onClick={onClose}>Cancel</button>
@@ -478,7 +478,7 @@ export function EditCaseDialog({ c, onClose }: { c: Case; onClose: () => void })
   const [priority, setPriority] = useState<Priority>(c.priority);
   const [source, setSource] = useState(c.leadSource);
   const [agentId, setAgentId] = useState(c.agentId ?? "");
-  const [visaType, setVisaType] = useState<TeamId>(c.visa);
+  const [visaType, setVisaType] = useState<VisaChoice>(c.visa);
   const [destination, setDestination] = useState(c.destination);
   const [subDestination, setSubDestination] = useState(c.subDestination ?? "");
   const canChangeDetails = admin || canEditCase(d.user, c);
@@ -512,7 +512,7 @@ export function EditCaseDialog({ c, onClose }: { c: Case; onClose: () => void })
       <form onSubmit={(ev) => { ev.preventDefault(); save(); }} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Deadline" htmlFor="ec-dl"><input id="ec-dl" type="date" className={field} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></Field>
-          <Field label="Visa type" htmlFor="ec-visa" hint={canChangeDetails ? "Changing this moves the case to the steps for that visa." : "Only the person holding this case can change it"}><select id="ec-visa" className={field} value={visaType} disabled={!canChangeDetails} onChange={(e) => setVisaType(e.target.value as TeamId)}>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></Field>
+          <Field label="Visa type" htmlFor="ec-visa" hint={canChangeDetails ? "Changing this moves the case to the steps for that visa." : "Only the person holding this case can change it"}><select id="ec-visa" className={field} value={visaType} disabled={!canChangeDetails} onChange={(e) => setVisaType(e.target.value as VisaChoice)}><option value="">Not chosen yet</option>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></Field>
           <Field label="Destination (optional)" htmlFor="ec-dest"><input id="ec-dest" className={field} value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="e.g. Canada" maxLength={80} /></Field>
           <Field label="Sub-destination (optional)" htmlFor="ec-subdest"><input id="ec-subdest" className={field} value={subDestination} onChange={(e) => setSubDestination(e.target.value)} placeholder="e.g. Toronto, Ontario" maxLength={80} /></Field>
           <Field label="Priority" htmlFor="ec-prio"><select id="ec-prio" className={field} value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>{(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}</select></Field>

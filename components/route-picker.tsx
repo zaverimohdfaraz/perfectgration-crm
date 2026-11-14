@@ -6,7 +6,7 @@ import { useDemo, type PassTarget } from "@/lib/store";
 import { OWNER_LABEL, VISA_TYPES, type TeamId } from "@/lib/demo-data";
 
 /** Choose who receives a handoff: one person, a visa team, or the whole next team when unsure. */
-export function RoutePicker({ to, value, onChange, defaultVisa, error }: { to: "sales" | "case"; value: PassTarget; onChange: (v: PassTarget) => void; defaultVisa: TeamId; error?: string }) {
+export function RoutePicker({ to, value, onChange, defaultVisa, error }: { to: "sales" | "case"; value: PassTarget; onChange: (v: PassTarget) => void; defaultVisa?: TeamId; error?: string }) {
   const d = useDemo();
   const team = OWNER_LABEL[to];
   const people = d.users.filter((u) => u.role === "consultant" && !u.inactive && u.workTeam === to);
@@ -27,7 +27,7 @@ export function RoutePicker({ to, value, onChange, defaultVisa, error }: { to: "
             <span className="block font-semibold">{o.label}</span>
             <span className="text-sm text-ink-muted">{o.help}</span>
             {value.kind === o.id && o.id === "visa" && (
-              <span className="mt-2 block"><select aria-label="Visa team" className={field} value={value.visa ?? defaultVisa} onChange={(e) => onChange({ ...value, visa: e.target.value as TeamId })}>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></span>
+              <span className="mt-2 block"><select aria-label="Visa team" className={field} value={value.visa ?? defaultVisa ?? ""} onChange={(e) => onChange({ ...value, visa: (e.target.value || undefined) as TeamId | undefined })}><option value="">Choose a visa team</option>{VISA_TYPES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}</select></span>
             )}
             {value.kind === o.id && o.id === "person" && (
               <span className="mt-2 block"><select aria-label="Person" className={field} value={value.userId ?? ""} onChange={(e) => onChange({ ...value, userId: e.target.value })}>{people.map((u) => <option key={u.id} value={u.id}>{u.name} · {u.teams.map((t) => VISA_TYPES.find((v) => v.id === t)?.label).join(", ")}</option>)}</select></span>

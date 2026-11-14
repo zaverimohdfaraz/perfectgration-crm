@@ -10,7 +10,8 @@ export const DEPT: Record<TeamId, { label: string; blurb: string; Icon: typeof B
   eb2niw: { label: "EB2-NIW", blurb: "US national interest waiver", Icon: Flag, chip: "bg-slate-200 text-slate-900 ring-slate-400", tile: "bg-slate-200 text-slate-800", ring: "ring-slate-500" },
 };
 
-export function DeptChip({ team, large = false }: { team: TeamId; large?: boolean }) {
+export function DeptChip({ team, large = false }: { team: TeamId | ""; large?: boolean }) {
+  if (!team) return <span className={`inline-flex items-center whitespace-nowrap rounded-md font-semibold text-ink-muted ring-1 ring-inset ring-slate-300 ${large ? "px-3 py-1.5 text-[0.9375rem]" : "px-2.5 py-1 text-sm"}`}>Not chosen</span>;
   const x = DEPT[team];
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md font-semibold ring-1 ring-inset ${x.chip} ${large ? "px-3 py-1.5 text-[0.9375rem]" : "px-2.5 py-1 text-sm"}`}>

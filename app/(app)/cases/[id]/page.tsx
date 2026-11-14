@@ -80,7 +80,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
       <PageHeader
         title={client?.name ?? "Case"}
-        description={`${c.ref} · ${visaLabel(c.visa)} visa${destinationOf(c) ? ` · ${destinationOf(c)}` : ""} · Responsible: ${c.route ? `waiting for someone in the ${OWNER_LABEL[c.route.to]} to accept` : `${consultant?.name ?? "not assigned"} (${ownerLabel})`}`}
+        description={`${c.ref} · ${c.visa ? `${visaLabel(c.visa)} visa` : "Visa not chosen"}${destinationOf(c) ? ` · ${destinationOf(c)}` : ""} · Responsible: ${c.route ? `waiting for someone in the ${OWNER_LABEL[c.route.to]} to accept` : `${consultant?.name ?? "not assigned"} (${ownerLabel})`}`}
         actions={
           <>
             {claimable && c.status === "active" && <Button onClick={() => { d.claimCase(c.id); d.toast("You accepted this case. It is now yours. (Demo: not saved.)"); }}>Accept this {c.route?.to === "sales" ? "lead" : "case"}</Button>}

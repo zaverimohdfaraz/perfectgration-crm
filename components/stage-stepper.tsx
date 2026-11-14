@@ -13,7 +13,7 @@ const CIRCLE: Record<StepState, string> = {
   skipped: "border border-dashed border-slate-300 bg-white text-ink-muted",
 };
 
-export function StageStepper({ current, visa }: { current: StageId; visa: TeamId }) {
+export function StageStepper({ current, visa }: { current: StageId; visa: TeamId | "" }) {
   const idx = STAGES.findIndex((s) => s.id === current);
   const steps = STAGES.map((s, i) => {
     const skipped = visa === "visit" && s.id === "docassess";

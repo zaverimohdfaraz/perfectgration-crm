@@ -13,10 +13,13 @@ export type IncomingLead = {
   phone: string;
   email: string;
   campaign?: string;
-  visa: TeamId;
+  /** Empty when the form does not say which visa the person wants. Sales chooses it when they open the lead. */
+  visa: TeamId | "";
   leadSource: string;
   /** The other form answers, written into the first note. */
   answers: string[];
+  /** When the person filled in the form (from the spreadsheet). Missing means "now". */
+  createdAt?: string;
 };
 
 /** Visa words that a form question may contain, e.g. "Which visa do you need?" → "Study". */
@@ -27,8 +30,6 @@ const VISA_WORDS: [TeamId, RegExp][] = [
   ["work", /\bwork|job|employ/i],
   ["visit", /visit|tourist|tourism|family/i],
 ];
-/** Used when the form does not say which visa the person wants. Sales confirms it when they open the lead. */
-export const DEFAULT_VISA: TeamId = "study";
 
 export function visaFromAnswer(label: string, value: string): TeamId | undefined {
   if (!/visa|service|interest|need/i.test(label)) return undefined;
@@ -54,7 +55,36 @@ export function parseMetaLead(graph: { field_data?: { name: string; values?: str
     source: "meta", externalId: `meta:${leadgenId}`,
     name: name || "Facebook lead", phone: value("phone_number"), email: value("email"),
     campaign: clean(graph.campaign_name) || undefined,
-    visa: visa ?? DEFAULT_VISA, leadSource: "Facebook", answers: other,
+    visa: visa ?? "", leadSource: "Facebook", answers: other,
+  };
+}
+
+/** Columns of a Meta lead-form spreadsheet that are not form answers. Every other column is one answer. */
+const SHEET_FIXED = new Set(["", "id", "created_time", "ad_id", "ad_name", "adset_id", "adset_name", "campaign_id", "campaign_name", "form_id", "form_name", "is_organic", "platform", "email", "full_name", "phone_number", "lead_status"]);
+
+/**
+ * One row of a Meta lead-form spreadsheet (the export Meta sends to Google Sheets). The id is the same id the
+ * webhook uses, so a lead that arrives both ways is still created only once.
+ */
+export function parseSheetLead(row: Record<string, string>): IncomingLead | undefined {
+  const id = clean(row.id).replace(/^l:/, "");
+  if (!id) return undefined;
+  let visa: TeamId | undefined;
+  const other: string[] = [];
+  for (const [key, value] of Object.entries(row)) {
+    const v = clean(value);
+    if (!v || SHEET_FIXED.has(key)) continue;
+    const label = key.replace(/_/g, " ").replace(/\?$/, "").replace(/\s+/g, " ").trim();
+    visa = visa ?? visaFromAnswer(label, v);
+    other.push(`${label}: ${v}`);
+  }
+  const created = Date.parse(clean(row.created_time));
+  return {
+    source: "meta", externalId: `meta:${id}`,
+    name: clean(row.full_name) || "Facebook lead", phone: clean(row.phone_number).replace(/^p:/, ""), email: clean(row.email),
+    campaign: clean(row.campaign_name) || undefined,
+    visa: visa ?? "", leadSource: clean(row.platform).toLowerCase() === "ig" ? "Instagram" : "Facebook",
+    answers: other, createdAt: Number.isNaN(created) ? undefined : new Date(created).toISOString(),
   };
 }
 
@@ -76,7 +106,7 @@ export function parseGoogleLead(body: { lead_id?: unknown; campaign_id?: unknown
     source: "google", externalId: `google:${clean(String(body.lead_id ?? ""))}`,
     name: name || "Google Ads lead", phone: value("PHONE_NUMBER"), email: value("EMAIL"),
     campaign: clean(String(body.campaign_id ?? "")) ? `Campaign ${clean(String(body.campaign_id))}` : undefined,
-    visa: visa ?? DEFAULT_VISA, leadSource: "Google Ads", answers: other,
+    visa: visa ?? "", leadSource: "Google Ads", answers: other,
   };
 }
 

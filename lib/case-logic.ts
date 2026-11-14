@@ -3,7 +3,7 @@
  * The browser uses these for the instant on-screen update, and the API runs the same functions on the
  * server before saving, so the rules can never differ between the two.
  */
-import { OWNER_LABEL, STAGES, STAGE_GUIDE, STAGE_OWNER, visaLabel, type Case, type CaseStatus, type Issue, type IssueKind, type Priority, type Route, type StageId, type SubmissionStatus, type TeamId, type User, type WorkTeam } from "./demo-data";
+import { OWNER_LABEL, STAGES, STAGE_GUIDE, STAGE_OWNER, visaLabel, type Case, type VisaChoice, type CaseStatus, type Issue, type IssueKind, type Priority, type Route, type StageId, type SubmissionStatus, type TeamId, type User, type WorkTeam } from "./demo-data";
 import { plusDays } from "./dates";
 import { canApproveQc, canClaim, canEditCase, canLogOutcome, canReactivate, canReassign } from "./permissions";
 
@@ -13,7 +13,7 @@ export const isFail = (x: unknown): x is Fail => typeof x === "object" && x !== 
 
 export type PassTarget = { kind: Route["kind"]; visa?: TeamId; userId?: string };
 export type OutcomeResult = "approved" | "refused" | "returned" | "withdrawn";
-export type NewCaseInput = { id: string; ref: string; clientId: string; visa: TeamId; leadSource: string; campaign?: string; priority: Priority; destination?: string; subDestination?: string; budget?: number; agentId?: string; note?: string; pass?: PassTarget };
+export type NewCaseInput = { id: string; ref: string; clientId: string; visa: VisaChoice; leadSource: string; campaign?: string; priority: Priority; destination?: string; subDestination?: string; budget?: number; agentId?: string; note?: string; pass?: PassTarget };
 
 export function nextStageFor(c: Pick<Case, "stage" | "visa">): StageId | null {
   let i = STAGES.findIndex((s) => s.id === c.stage) + 1;
@@ -60,6 +60,7 @@ export function passCase(c: Case, x: Ctx, target: PassTarget, text?: string, ext
   const team = STAGE_OWNER[to];
   if (team === STAGE_OWNER[c.stage] || (team !== "sales" && team !== "case")) return { error: "Use Move to next step for steps inside your own team." };
   const visa = target.kind === "visa" && target.visa ? target.visa : c.visa;
+  if (target.kind === "visa" && !visa) return { error: "Choose the visa team to pass this lead to." };
   let person: User | undefined;
   if (target.kind === "person") {
     person = x.users.find((u) => u.id === target.userId);
@@ -67,7 +68,7 @@ export function passCase(c: Case, x: Ctx, target: PassTarget, text?: string, ext
   }
   const handler = !person ? x.users.find((u) => u.id === x.handlers[`${c.visa}:${to}`] && !u.inactive && u.workTeam === team) : undefined;
   const holder = person ?? handler;
-  const route: Route | undefined = holder ? undefined : { to: team, kind: target.kind, visa: target.kind === "visa" ? visa : undefined, by: x.user.name, at: x.at };
+  const route: Route | undefined = holder ? undefined : { to: team, kind: target.kind, visa: target.kind === "visa" ? (visa as TeamId) : undefined, by: x.user.name, at: x.at };
   const dest = holder ? holder.name : target.kind === "visa" ? `the ${visaLabel(visa)} team` : `the whole ${OWNER_LABEL[team]}`;
   const key = team === "sales" ? "salesId" : "caseManagerId";
   if (team === "case" && !(extra.fees ?? c.feesCollectedSar)) return { error: "Record the advance or fees collected before passing to the Case Manager team." };
@@ -256,7 +257,7 @@ export function editCase(c: Case, x: Ctx, patch: CaseEdit): Case | Fail {
   if (!canEditCase(x.user, c)) return { error: "Only the person who holds this case can edit it." };
   const clean: CaseEdit = { ...patch };
   delete clean.agentId; // agents are linked with linkAgent (administrator only)
-  const notes = clean.visa && clean.visa !== c.visa ? [...c.notes, note(x, `Visa type changed from ${visaLabel(c.visa)} to ${visaLabel(clean.visa)}`)] : c.notes;
+  const notes = clean.visa !== undefined && clean.visa !== c.visa ? [...c.notes, note(x, `Visa type changed from ${visaLabel(c.visa)} to ${visaLabel(clean.visa)}`)] : c.notes;
   return { ...c, ...clean, notes, updatedAt: x.at };
 }
 

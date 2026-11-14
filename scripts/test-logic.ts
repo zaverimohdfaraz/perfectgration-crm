@@ -366,10 +366,7 @@ test("sign-in record: devices, days and weekends", () => {
   assert.equal(LG.deviceFrom("Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/130.0 Safari/537.36 Edg/130.0"), "Edge on Windows");
   assert.equal(LG.deviceFrom(null), "Unknown device");
   assert.deepEqual(LG.daysBetween("2026-10-30", "2026-11-02"), ["2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02"]);
-  assert.equal(LG.isWeekend("2026-10-23"), true, "Friday");
-  assert.equal(LG.isWeekend("2026-10-24"), true, "Saturday");
-  assert.equal(LG.isWeekend("2026-10-25"), false, "Sunday is a working day");
-  assert.equal(LG.workingDays(LG.daysBetween("2026-10-18", "2026-10-24")), 5);
+  assert.equal(LG.daysBetween("2026-10-18", "2026-10-24").length, 7, "every day counts, Friday and Saturday included");
   assert.equal(LG.fmtClock("2026-10-21T05:07:00.000Z"), "08:07", "Riyadh time");
   assert.equal(LG.fmtDay("2026-10-21"), "Wed 21 Oct");
   assert.equal(LG.fmtMinutes(135), "2 h 15 min");
@@ -395,7 +392,8 @@ test("sign-in record: sample data never shows the future or inactive people", ()
   assert.ok(rows.length > 50);
   assert.ok(rows.every((r) => r.day <= "2026-10-21" && (!r.firstAt || Date.parse(r.firstAt) <= now)));
   assert.ok(!rows.some((r) => r.userId === "u-hadi"), "inactive account");
-  assert.ok(!rows.some((r) => LG.isWeekend(r.day)));
+  const weekday = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay();
+  assert.ok(rows.some((r) => weekday(r.day) === 5) && rows.some((r) => weekday(r.day) === 6), "Friday and Saturday sign-ins are kept");
   const today = rows.filter((r) => r.day === "2026-10-21");
   assert.ok(today.some(LG.wasIn) && today.some((r) => !LG.wasIn(r)));
 });
@@ -458,7 +456,7 @@ test("Meta lead form: name, phone, email, campaign, visa and answers", () => {
   assert.deepEqual(l.answers, ["which visa do you need: Study visa", "city: Riyadh"]);
   const split = LD.parseMetaLead({ field_data: [{ name: "first_name", values: ["Omar"] }, { name: "last_name", values: ["Saleh"] }] }, "9");
   assert.equal(split.name, "Omar Saleh");
-  assert.equal(split.visa, LD.DEFAULT_VISA, "no visa question: default");
+  assert.equal(split.visa, "", "no visa question: left empty for Sales to choose");
 });
 test("Google lead form: columns become the lead", () => {
   const l = LD.parseGoogleLead({ lead_id: "g-77", campaign_id: 555, user_column_data: [
@@ -513,6 +511,27 @@ test("The case holder can change visa type, destination and sub-destination; the
   assert.equal(edited.destination, "Canada");
   assert.equal(edited.subDestination, "Toronto, Ontario");
   assert.ok(edited.notes.at(-1)?.text.includes("Visa type changed"));
+});
+
+test("A lead-form spreadsheet row becomes a lead with the same id as the webhook, the right date and the answers", () => {
+  const row = {
+    id: "l:1111111111111111", created_time: "2026-11-06T08:43:00-05:00", ad_id: "ag:1", ad_name: "Ad", adset_id: "as:1", adset_name: "Set",
+    campaign_id: "c:1", campaign_name: "Test | Campaign", form_id: "f:1", form_name: "Form", is_organic: "false", platform: "fb",
+    "parlez-vous_français_?": "yes", quelle_est_votre_profession_: "engineer", email: "dummy@example.com", full_name: "Dummy Person",
+    phone_number: "p:+966500000000", lead_status: "CREATED", "": "",
+  };
+  const l = LD.parseSheetLead(row)!;
+  assert.equal(l.externalId, "meta:1111111111111111", "same id the webhook would use");
+  assert.equal(l.createdAt, "2026-11-06T13:43:00.000Z", "the time the person filled in the form, in UTC");
+  assert.equal(l.name, "Dummy Person");
+  assert.equal(l.phone, "+966500000000", "the p: prefix is removed");
+  assert.equal(l.campaign, "Test | Campaign");
+  assert.equal(l.leadSource, "Facebook");
+  assert.equal(l.visa, "", "no visa question, so left empty");
+  assert.ok(l.answers.includes("quelle est votre profession: engineer"));
+  assert.ok(!l.answers.some((a: string) => a.startsWith("platform") || a.startsWith("email")), "fixed columns are not answers");
+  assert.equal(LD.parseSheetLead({ ...row, id: "" }), undefined, "a row without an id is skipped");
+  assert.equal(LD.parseSheetLead({ ...row, platform: "ig" })!.leadSource, "Instagram");
 });
 
 console.log(`\n${passed} passed, ${failures.length} failed\n`);

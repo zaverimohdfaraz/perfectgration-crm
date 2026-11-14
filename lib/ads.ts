@@ -28,6 +28,8 @@ export type AdStatus = {
   configured: boolean;
   lastSyncAt?: string;
   ok?: boolean;
+  /** Some ad accounts synced and some did not; `error` says which ones. */
+  partial?: boolean;
   error?: string;
 };
 

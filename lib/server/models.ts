@@ -79,7 +79,7 @@ const CaseSchema = schema({
   _id: S,
   ref: { type: S, required: true, unique: true },
   clientId: { type: S, required: true, index: true },
-  visa: { type: S, required: true },
+  visa: { type: S, default: "" },
   stage: { type: S, required: true, index: true },
   status: { type: S, required: true, index: true },
   consultantId: { type: S, default: "" },
@@ -230,6 +230,8 @@ const SettingsSchema = schema({
   templates: { type: Schema.Types.Mixed, default: [] },
   /** Result of the last Meta and Google Ads sync (time, success, error message). */
   adSync: { type: Schema.Types.Mixed, default: {} },
+  /** Result of the last sync from the lead-form spreadsheet (time, how many were added, error message). */
+  leadSheet: { type: Schema.Types.Mixed, default: {} },
 });
 
 /* 11. counters: running numbers, used for case references (PG-26-0001). */

@@ -9,7 +9,7 @@ import { LastSeen, TodayCell, onlineNow, peopleFor, teamOf, useLogins } from "@/
 import { useDemo } from "@/lib/store";
 import { dayKey, rangeDays } from "@/lib/ads";
 import { TODAY } from "@/lib/dates";
-import { daysBetween, fmtClock, fmtDay, fmtMinutes, isWeekend, summarise, toCsv, wasIn, workingDays, type LoginDay, type PersonSummary } from "@/lib/logins";
+import { daysBetween, fmtClock, fmtDay, fmtMinutes, summarise, toCsv, wasIn, type LoginDay, type PersonSummary } from "@/lib/logins";
 import type { User } from "@/lib/demo-data";
 import { btn, field, td, th } from "@/lib/styles";
 
@@ -33,7 +33,8 @@ export default function SignInsPage() {
   if (d.user.role !== "admin") return <EmptyState title="Administrators only" body="The sign-in record is only available to the administrator." />;
 
   const days = last >= from ? daysBetween(from, last) : [];
-  const work = workingDays(days);
+  // Every day counts, including Friday, Saturday and Sunday.
+  const work = days.length;
   const people = peopleFor(d.users, all).filter((u) =>
     !team ? true : team === "leaders" ? u.role !== "consultant" : u.role === "consultant" && u.workTeam === team);
   const ids = new Set(people.map((u) => u.id));
@@ -63,7 +64,7 @@ export default function SignInsPage() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi label="Signed in today" value={`${inToday} / ${people.length}`} tone={inToday < people.length ? "warning" : "good"} hint={fmtDay(today)} />
         <Kpi label="Online now" value={online} hint={`CRM open in the last ${d.settings.onlineMinutes} min`} />
-        <Kpi label="Average per working day" value={work ? (personDays / work).toFixed(1) : "—"} hint={`${work} working day${work === 1 ? "" : "s"} · ${r.range.label}`} />
+        <Kpi label="Average per day" value={work ? (personDays / work).toFixed(1) : "—"} hint={`${work} day${work === 1 ? "" : "s"} · ${r.range.label}`} />
         <Kpi label="Wrong passwords" value={failed} tone={failed ? "danger" : "default"} hint={r.range.label} />
       </div>
 
@@ -112,7 +113,7 @@ function Calendar({ people, days, cell, today }: { people: User[]; days: string[
         <caption className="sr-only">First sign-in time per person and day</caption>
         <thead><tr>
           <th scope="col" className={`${th} sticky left-0 z-10 min-w-[12rem] border-b border-line bg-white`}>Person</th>
-          {cols.map((day) => <th key={day} scope="col" className={`whitespace-nowrap border-b border-line px-2 py-3 text-center text-xs font-semibold ${day === today ? "text-brand-deep" : "text-ink-muted"} ${isWeekend(day) ? "bg-slate-50" : ""}`}>{fmtDay(day).split(" ").slice(0, 2).join(" ")}</th>)}
+          {cols.map((day) => <th key={day} scope="col" className={`whitespace-nowrap border-b border-line px-2 py-3 text-center text-xs font-semibold ${day === today ? "text-brand-deep" : "text-ink-muted"}`}>{fmtDay(day).split(" ").slice(0, 2).join(" ")}</th>)}
         </tr></thead>
         <tbody>
           {people.map((u) => (
@@ -123,7 +124,7 @@ function Calendar({ people, days, cell, today }: { people: User[]; days: string[
                 const inn = wasIn(x);
                 const tip = inn ? `${u.name}, ${fmtDay(day)}: first ${fmtClock(x!.firstAt)}, last seen ${fmtClock(x!.lastActiveAt)}, open ${fmtMinutes(x!.activeMinutes)}` : x?.failed ? `${u.name}, ${fmtDay(day)}: ${x.failed} wrong password(s), not signed in` : `${u.name}, ${fmtDay(day)}: not signed in`;
                 return (
-                  <td key={day} title={tip} className={`border-b border-line px-1 py-2 text-center ${isWeekend(day) ? "bg-slate-50" : ""}`}>
+                  <td key={day} title={tip} className="border-b border-line px-1 py-2 text-center">
                     {inn ? <span className="inline-block min-w-[3.25rem] rounded-md bg-green-100 px-1.5 py-1 font-semibold tabular-nums text-green-900">{fmtClock(x!.firstAt)}</span>
                       : x?.failed ? <span className="inline-block min-w-[3.25rem] rounded-md bg-red-100 px-1.5 py-1 font-semibold text-red-900">✕ {x.failed}</span>
                       : <span className="text-ink-muted"><span aria-hidden>·</span><span className="sr-only">Not signed in</span></span>}
@@ -137,7 +138,6 @@ function Calendar({ people, days, cell, today }: { people: User[]; days: string[
       <p className="flex flex-wrap gap-4 px-5 py-3 text-xs text-ink-muted">
         <span><span className="mr-1 inline-block rounded bg-green-100 px-1.5 font-semibold text-green-900">08:12</span>first sign-in</span>
         <span><span className="mr-1 inline-block rounded bg-red-100 px-1.5 font-semibold text-red-900">✕ 2</span>wrong passwords, not signed in</span>
-        <span><span className="mr-1 inline-block h-3 w-4 rounded bg-slate-100 align-middle" />weekend</span>
       </p>
     </div>
   );
@@ -153,7 +153,7 @@ function ByDay({ people, days, cell, today, nowMs, minutes }: { people: User[]; 
         return (
           <section key={day} className="py-2">
             <h3 className="flex flex-wrap items-center gap-2 px-5 pt-3 font-semibold">
-              {fmtDay(day)}{day === today && <Pill tone="info">Today</Pill>}{isWeekend(day) && <Pill tone="neutral">Weekend</Pill>}
+              {fmtDay(day)}{day === today && <Pill tone="info">Today</Pill>}
               <span className="text-sm font-normal text-ink-muted">{inn.length} of {people.length} signed in</span>
             </h3>
             {inn.length > 0 && (
@@ -181,7 +181,7 @@ function ByDay({ people, days, cell, today, nowMs, minutes }: { people: User[]; 
                 </table>
               </div>
             )}
-            {out.length > 0 && !isWeekend(day) && (
+            {out.length > 0 && (
               <p className="px-5 py-3 text-sm"><span className="font-semibold">Not signed in:</span> {out.map((u) => {
                 const f = cell(u, day)?.failed;
                 return `${u.name}${f ? ` (${f} wrong password${f === 1 ? "" : "s"})` : ""}`;
@@ -220,7 +220,7 @@ function ByPerson({ people, summary, work }: { people: User[]; summary: PersonSu
           })}
         </tbody>
       </table>
-      <p className="px-5 py-3 text-xs text-ink-muted">&quot;Of&quot; counts working days (Sunday to Thursday) in the range. &quot;Usual start&quot; is the average first sign-in time.</p>
+      <p className="px-5 py-3 text-xs text-ink-muted">&quot;Of&quot; counts every day in the range, Friday and Saturday included. &quot;Usual start&quot; is the average first sign-in time.</p>
     </div>
   );
 }
